@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile/core/services/auth_state_notifier.dart';
+import 'package:mobile/screens/auth/email_verification_screen.dart';
 import 'package:mobile/screens/auth/login_screen.dart';
+import 'package:mobile/screens/auth/register_screen.dart';
 import 'supabase_client.dart';
 
 // ---------------------------------------------------------------------------
-// Route name constants — use these instead of raw strings
+// Route name constants
 // ---------------------------------------------------------------------------
 abstract class AppRoutes {
   static const splash = '/';
   static const login = '/login';
   static const register = '/register';
+  static const emailVerification = '/verify-email';
   static const home = '/home';
   static const businessList = '/businesses';
   static const businessDetail = '/businesses/:id';
@@ -25,30 +29,40 @@ class AppRouter {
 
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
+  /// Drives GoRouter re-evaluation on every auth state change
+  /// (sign-in, sign-out, token refresh, email verification, etc.)
+  static final _authNotifier = AuthStateNotifier();
+
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
+    refreshListenable: _authNotifier,   // ← key change: reactive redirects
     redirect: _guard,
     routes: [
-      // Splash / loading
+      // Splash
       GoRoute(
         path: AppRoutes.splash,
         builder: (context, state) => const _SplashScreen(),
       ),
 
-      // Auth
+      // ── Auth screens ──────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.login,
-        builder: (context, state) =>
-            const LoginScreen(), // ← was _PlaceholderScreen
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: AppRoutes.register,
-        builder: (context, state) =>
-            const _PlaceholderScreen(label: 'Register'),
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.emailVerification,
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return EmailVerificationScreen(email: email);
+        },
       ),
 
-      // Main app shell with bottom navigation
+      // ── Main app (bottom nav shell) ───────────────────────────────────────
       ShellRoute(
         builder: (context, state, child) => _AppShell(child: child),
         routes: [
@@ -71,7 +85,8 @@ class AppRouter {
                   GoRoute(
                     path: 'review',
                     builder: (context, state) => _PlaceholderScreen(
-                      label: 'Write Review for ${state.pathParameters['id']}',
+                      label:
+                          'Write Review for ${state.pathParameters['id']}',
                     ),
                   ),
                 ],
@@ -88,25 +103,33 @@ class AppRouter {
     ],
   );
 
-  /// Redirect unauthenticated users to login and authenticated users away
-  /// from auth screens.
+  // -------------------------------------------------------------------------
+  // Guard
+  // -------------------------------------------------------------------------
   static String? _guard(BuildContext context, GoRouterState state) {
-    final isLoggedIn = SupabaseClientProvider.isAuthenticated;
-    final isOnAuthScreen =
-        state.matchedLocation == AppRoutes.login ||
-        state.matchedLocation == AppRoutes.register;
-    final isOnSplash = state.matchedLocation == AppRoutes.splash;
+    final loc = state.matchedLocation;
+    final user = SupabaseClientProvider.currentUser;
+    final isLoggedIn = user != null;
+    final isEmailConfirmed = user?.emailConfirmedAt != null;
 
-    if (isOnSplash) {
-      // Let the splash screen decide after checking session
-      return null;
+    final isOnSplash = loc == AppRoutes.splash;
+    final isOnAuth = loc == AppRoutes.login ||
+        loc == AppRoutes.register ||
+        loc == AppRoutes.emailVerification;
+
+    // Let splash handle its own logic
+    if (isOnSplash) return null;
+
+    // Not logged in → send to login
+    if (!isLoggedIn && !isOnAuth) return AppRoutes.login;
+
+    // Logged in but email not confirmed → hold on verification screen
+    if (isLoggedIn && !isEmailConfirmed && loc != AppRoutes.emailVerification) {
+      return '${AppRoutes.emailVerification}?email=${Uri.encodeComponent(user.email ?? '')}';
     }
 
-    if (!isLoggedIn && !isOnAuthScreen) {
-      return AppRoutes.login;
-    }
-
-    if (isLoggedIn && isOnAuthScreen) {
+    // Logged in & confirmed → push away from auth screens
+    if (isLoggedIn && isEmailConfirmed && isOnAuth) {
       return AppRoutes.home;
     }
 
@@ -144,21 +167,21 @@ class _AppShell extends StatelessWidget {
   ];
 
   int _currentIndex(BuildContext context) {
-    final location = GoRouter.of(context).routeInformationProvider.value.uri;
-    if (location.pathSegments.first == AppRoutes.businessList) return 1;
-    if (location.pathSegments.first == AppRoutes.profile) return 2;
+    final uri =
+        GoRouter.of(context).routeInformationProvider.value.uri;
+    final first = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+    if (first == 'businesses') return 1;
+    if (first == 'profile') return 2;
     return 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentIndex = _currentIndex(context);
-
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
-        onDestinationSelected: (index) => context.go(_tabs[index].route),
+        selectedIndex: _currentIndex(context),
+        onDestinationSelected: (i) => context.go(_tabs[i].route),
         destinations: _tabs
             .map(
               (t) => NavigationDestination(
@@ -174,7 +197,7 @@ class _AppShell extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Splash screen — resolves auth state then redirects
+// Splash screen
 // ---------------------------------------------------------------------------
 class _SplashScreen extends StatefulWidget {
   const _SplashScreen();
@@ -191,29 +214,34 @@ class _SplashScreenState extends State<_SplashScreen> {
   }
 
   Future<void> _redirect() async {
-    // Small delay so the splash is visible for at least one frame
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
 
-    if (SupabaseClientProvider.isAuthenticated) {
-      context.go(AppRoutes.home);
-    } else {
+    final user = SupabaseClientProvider.currentUser;
+    if (user == null) {
       context.go(AppRoutes.login);
+    } else if (user.emailConfirmedAt == null) {
+      context.go(
+        '${AppRoutes.emailVerification}?email=${Uri.encodeComponent(user.email ?? '')}',
+      );
+    } else {
+      context.go(AppRoutes.home);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+    );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder — replace with real screens as you build them
+// Placeholder
 // ---------------------------------------------------------------------------
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.label});
-
   final String label;
 
   @override
