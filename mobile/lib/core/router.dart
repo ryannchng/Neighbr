@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/core/services/auth_state_notifier.dart';
+import 'package:mobile/models/business_model.dart';
 import 'package:mobile/screens/auth/email_verification_screen.dart';
 import 'package:mobile/screens/auth/login_screen.dart';
 import 'package:mobile/screens/auth/register_screen.dart';
 import 'package:mobile/screens/auth/reset_password_screen.dart';
 import 'package:mobile/screens/home/home_screen.dart';
+import 'package:mobile/screens/owner/owner_dashboard_screen.dart';
+import 'package:mobile/screens/owner/owner_business_detail_screen.dart';
+import 'package:mobile/screens/owner/owner_business_form_screen.dart';
+import 'package:mobile/screens/profile/profile_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_client.dart';
 
@@ -23,6 +28,11 @@ abstract class AppRoutes {
   static const businessDetail = '/businesses/:id';
   static const writeReview = '/businesses/:id/review';
   static const profile = '/profile';
+
+  // Owner portal
+  static const ownerDashboard = '/owner';
+  static const ownerBusinessForm = '/owner/businesses/new';
+  static const ownerBusinessDetail = '/owner/businesses/:id';
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +79,26 @@ class AppRouter {
         builder: (context, state) => const ResetPasswordScreen(),
       ),
 
+      // ── Owner portal (outside shell — no bottom nav) ──────────────────────
+      GoRoute(
+        path: AppRoutes.ownerDashboard,
+        builder: (context, state) => const OwnerDashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.ownerBusinessForm,
+        builder: (context, state) {
+          final business = state.extra as Business?;
+          return OwnerBusinessFormScreen(business: business);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.ownerBusinessDetail,
+        builder: (context, state) {
+          final businessId = state.pathParameters['id']!;
+          return OwnerBusinessDetailScreen(businessId: businessId);
+        },
+      ),
+
       // ── Main app (bottom nav shell) ───────────────────────────────────────
       ShellRoute(
         builder: (context, state, child) => _AppShell(child: child),
@@ -102,7 +132,7 @@ class AppRouter {
           GoRoute(
             path: AppRoutes.profile,
             builder: (context, state) =>
-                const _PlaceholderScreen(label: 'Profile'),
+                const ProfileScreen(),
           ),
         ],
       ),
