@@ -96,7 +96,10 @@ class AuthRepository {
 
   Future<void> sendPasswordResetEmail(String email) async {
     try {
-      await SupabaseClientProvider.auth.resetPasswordForEmail(email.trim());
+      await SupabaseClientProvider.auth.resetPasswordForEmail(
+        email.trim(),
+        redirectTo: 'com.example.mobile://login-callback',
+      );
     } on sb.AuthException catch (e, st) {
       dev.log('Supabase AuthException: ${e.message}', error: e, stackTrace: st);
       throw AppAuthException(_mapAuthError(e.message));

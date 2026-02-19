@@ -4,7 +4,9 @@ import 'package:mobile/core/services/auth_state_notifier.dart';
 import 'package:mobile/screens/auth/email_verification_screen.dart';
 import 'package:mobile/screens/auth/login_screen.dart';
 import 'package:mobile/screens/auth/register_screen.dart';
+import 'package:mobile/screens/auth/reset_password_screen.dart';
 import 'package:mobile/screens/home/home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_client.dart';
 
 // ---------------------------------------------------------------------------
@@ -15,6 +17,7 @@ abstract class AppRoutes {
   static const login = '/login';
   static const register = '/register';
   static const emailVerification = '/verify-email';
+  static const resetPassword = '/reset-password';
   static const home = '/home';
   static const businessList = '/businesses';
   static const businessDetail = '/businesses/:id';
@@ -30,14 +33,13 @@ class AppRouter {
 
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-  /// Drives GoRouter re-evaluation on every auth state change
-  /// (sign-in, sign-out, token refresh, email verification, etc.)
+  /// Drives GoRouter re-evaluation on every auth state change.
   static final _authNotifier = AuthStateNotifier();
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
-    refreshListenable: _authNotifier,   // ← key change: reactive redirects
+    refreshListenable: _authNotifier,
     redirect: _guard,
     routes: [
       // Splash
@@ -62,6 +64,10 @@ class AppRouter {
           return EmailVerificationScreen(email: email);
         },
       ),
+      GoRoute(
+        path: AppRoutes.resetPassword,
+        builder: (context, state) => const ResetPasswordScreen(),
+      ),
 
       // ── Main app (bottom nav shell) ───────────────────────────────────────
       ShellRoute(
@@ -69,8 +75,7 @@ class AppRouter {
         routes: [
           GoRoute(
             path: AppRoutes.home,
-            builder: (context, state) =>
-                const HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: AppRoutes.businessList,
@@ -111,8 +116,17 @@ class AppRouter {
     final loc = state.matchedLocation;
     final user = SupabaseClientProvider.currentUser;
     final isLoggedIn = user != null;
-    
-    // emailConfirmedAt may lag — also check the session's user metadata
+
+    // When the user clicks a password reset link, Supabase fires
+    // passwordRecovery before the session is fully established. Redirect
+    // immediately so they can set a new password.
+    final lastEvent = _authNotifier.lastEvent;
+    if (lastEvent == AuthChangeEvent.passwordRecovery) {
+      if (loc != AppRoutes.resetPassword) return AppRoutes.resetPassword;
+      return null;
+    }
+
+    // emailConfirmedAt may lag — also check user metadata as a fallback.
     final isEmailConfirmed = user?.emailConfirmedAt != null ||
         user?.userMetadata?['email_verified'] == true;
 
@@ -121,13 +135,21 @@ class AppRouter {
         loc == AppRoutes.register ||
         loc == AppRoutes.emailVerification;
 
+    // Let the splash handle its own redirect logic.
     if (isOnSplash) return null;
+
+    // Not logged in → send to login (unless already on an auth screen).
     if (!isLoggedIn && !isOnAuth) return AppRoutes.login;
 
-    if (isLoggedIn && !isEmailConfirmed && loc != AppRoutes.emailVerification) {
-      return '${AppRoutes.emailVerification}?email=${Uri.encodeComponent(user.email ?? '')}';
+    // Logged in but email not confirmed → send to verification screen.
+    if (isLoggedIn &&
+        !isEmailConfirmed &&
+        loc != AppRoutes.emailVerification) {
+      return '${AppRoutes.emailVerification}'
+          '?email=${Uri.encodeComponent(user.email ?? '')}';
     }
 
+    // Logged in and confirmed → don't linger on auth screens.
     if (isLoggedIn && isEmailConfirmed && isOnAuth) {
       return AppRoutes.home;
     }
@@ -168,7 +190,8 @@ class _AppShell extends StatelessWidget {
   int _currentIndex(BuildContext context) {
     final uri =
         GoRouter.of(context).routeInformationProvider.value.uri;
-    final first = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+    final first =
+        uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
     if (first == 'businesses') return 1;
     if (first == 'profile') return 2;
     return 0;
@@ -221,7 +244,8 @@ class _SplashScreenState extends State<_SplashScreen> {
       context.go(AppRoutes.login);
     } else if (user.emailConfirmedAt == null) {
       context.go(
-        '${AppRoutes.emailVerification}?email=${Uri.encodeComponent(user.email ?? '')}',
+        '${AppRoutes.emailVerification}'
+        '?email=${Uri.encodeComponent(user.email ?? '')}',
       );
     } else {
       context.go(AppRoutes.home);
