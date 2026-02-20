@@ -10,6 +10,7 @@ import 'package:mobile/screens/home/home_screen.dart';
 import 'package:mobile/screens/owner/owner_dashboard_screen.dart';
 import 'package:mobile/screens/owner/owner_business_detail_screen.dart';
 import 'package:mobile/screens/owner/owner_business_form_screen.dart';
+import 'package:mobile/screens/profile/profile_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_client.dart';
 
@@ -131,7 +132,7 @@ class AppRouter {
           GoRoute(
             path: AppRoutes.profile,
             builder: (context, state) =>
-                const _PlaceholderScreen(label: 'Profile'),
+                const ProfileScreen(),
           ),
         ],
       ),
