@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/category_icon_mapper.dart';
 import '../../core/router.dart';
 import '../../core/supabase_client.dart';
 import '../../models/business_model.dart';
@@ -596,13 +597,26 @@ class _FeaturedCard extends StatelessWidget {
                   Row(
                     children: [
                       if (business.category != null) ...[
-                        Text(
-                          '${business.category!.icon} ${business.category!.name}',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color:
-                                colorScheme.onSurface.withAlpha(140),
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              CategoryIconMapper.fromKey(
+                                business.category!.iconKey,
+                                fallbackName: business.category!.name,
+                              ),
+                              size: 13,
+                              color: colorScheme.onSurface.withAlpha(140),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              business.category!.name,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: colorScheme.onSurface.withAlpha(140),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                       if (business.priceRangeLabel != null) ...[
@@ -686,12 +700,26 @@ class _BusinessListTile extends StatelessWidget {
                   Row(
                     children: [
                       if (business.category != null)
-                        Text(
-                          '${business.category!.icon} ${business.category!.name}',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: colorScheme.onSurface.withAlpha(140),
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              CategoryIconMapper.fromKey(
+                                business.category!.iconKey,
+                                fallbackName: business.category!.name,
+                              ),
+                              size: 14,
+                              color: colorScheme.onSurface.withAlpha(140),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              business.category!.name,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: colorScheme.onSurface.withAlpha(140),
+                              ),
+                            ),
+                          ],
                         ),
                       if (business.priceRangeLabel != null) ...[
                         Text(

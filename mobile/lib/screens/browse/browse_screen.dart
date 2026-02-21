@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/category_icon_mapper.dart';
 import '../../core/constants.dart';
 import '../../models/business_model.dart';
 import '../../models/category_model.dart';
@@ -452,7 +453,10 @@ class _BrowseScreenState extends State<BrowseScreen> {
                 final cat = _categories[i - 1];
                 return _FilterChip(
                   label: cat.name,
-                  icon: _categoryIconForName(cat.name),
+                  icon: CategoryIconMapper.fromKey(
+                    cat.iconKey,
+                    fallbackName: cat.name,
+                  ),
                   selected: _activeCategoryIds.contains(cat.id),
                   onTap: () => _applyFilter(categoryToggleId: cat.id),
                 );
@@ -791,29 +795,6 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-IconData _categoryIconForName(String name) {
-  final n = name.toLowerCase();
-  if (n.contains('food') || n.contains('dining') || n.contains('restaurant')) {
-    return Icons.restaurant_rounded;
-  }
-  if (n.contains('retail') || n.contains('shop') || n.contains('store')) {
-    return Icons.shopping_bag_rounded;
-  }
-  if (n.contains('service') || n.contains('repair')) {
-    return Icons.handyman_rounded;
-  }
-  if (n.contains('health') || n.contains('wellness') || n.contains('medical')) {
-    return Icons.favorite_rounded;
-  }
-  if (n.contains('entertainment') || n.contains('event')) {
-    return Icons.theaters_rounded;
-  }
-  if (n.contains('beauty') || n.contains('salon') || n.contains('barber')) {
-    return Icons.content_cut_rounded;
-  }
-  return Icons.storefront_rounded;
-}
-
 // ============================================================================
 // Sort button
 // ============================================================================
@@ -934,14 +915,30 @@ class _BusinessTile extends StatelessWidget {
                     children: [
                       if (business.category != null)
                         Flexible(
-                          child: Text(
-                            '${business.category!.icon} ${business.category!.name}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: colorScheme.onSurface.withAlpha(140),
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                CategoryIconMapper.fromKey(
+                                  business.category!.iconKey,
+                                  fallbackName: business.category!.name,
+                                ),
+                                size: 14,
+                                color: colorScheme.onSurface.withAlpha(140),
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  business.category!.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: colorScheme.onSurface.withAlpha(140),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       if (business.priceRangeLabel != null) ...[

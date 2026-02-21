@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/category_icon_mapper.dart';
 import '../../models/business_model.dart';
 import '../../repositories/favourites_repository.dart';
 
@@ -172,12 +173,29 @@ class _SavedTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   if (business.category != null)
-                    Text(
-                      '${business.category!.icon} ${business.category!.name}',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: colorScheme.onSurface.withAlpha(140),
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          CategoryIconMapper.fromKey(
+                            business.category!.iconKey,
+                            fallbackName: business.category!.name,
+                          ),
+                          size: 14,
+                          color: colorScheme.onSurface.withAlpha(140),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            business.category!.name,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: colorScheme.onSurface.withAlpha(140),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   const SizedBox(height: 4),
                   Row(

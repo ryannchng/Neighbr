@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/category_icon_mapper.dart';
 import '../../core/router.dart';
 import '../../models/business_model.dart';
 import '../../repositories/business_request_repository.dart';
@@ -798,10 +799,12 @@ class _DetailsTab extends StatelessWidget {
               if (business.category != null) ...[
                 const Divider(height: 20),
                 _InfoRow(
-                  icon: Icons.category_rounded,
+                  icon: CategoryIconMapper.fromKey(
+                    business.category!.iconKey,
+                    fallbackName: business.category!.name,
+                  ),
                   label: 'Category',
-                  value:
-                      '${business.category!.icon} ${business.category!.name}',
+                  value: business.category!.name,
                 ),
               ],
               if (business.description.isNotEmpty) ...[

@@ -160,11 +160,6 @@ class AppRouter {
           ),
           GoRoute(
             path: AppRoutes.profile,
-            builder: (context, state) =>
-                const ProfileScreen(),
-          ),
-          GoRoute(
-            path: AppRoutes.profile,
             builder: (context, state) => const ProfileScreen(),
             routes: [
               GoRoute(
