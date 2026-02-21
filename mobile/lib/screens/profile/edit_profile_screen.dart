@@ -181,8 +181,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       await _repo.saveProfile(
         username: _usernameCtrl.text.trim(),
-        fullName: _nameCtrl.text.trim(),
-        city: _cityCtrl.text.trim(),
+        // Pass the name even if empty so the repository can write it.
+        // We send null only when the field was never touched; here we always
+        // have a value (possibly empty string which we normalise to null).
+        fullName: _nameCtrl.text.trim().isEmpty
+            ? null
+            : _nameCtrl.text.trim(),
+        city: _cityCtrl.text.trim().isEmpty
+            ? null
+            : _cityCtrl.text.trim(),
         avatarFile: _newAvatarFile,
         interests: _selectedInterests.toList(),
       );
@@ -203,7 +210,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Determine which avatar image to show
     ImageProvider? avatarImage;
     if (_newAvatarFile != null) {
       avatarImage = FileImage(_newAvatarFile!);
@@ -217,6 +223,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
+      // ── AppBar – no save button; saving is done via the bottom button only
       appBar: AppBar(
         title: const Text('Edit Profile'),
         actions: [
@@ -230,12 +237,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-            )
-          else
-            TextButton(
-              onPressed: _save,
-              child: const Text('Save',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
             ),
         ],
       ),
@@ -350,6 +351,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               controller: _cityCtrl,
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _save(),
               decoration: InputDecoration(
                 labelText: 'City',
                 prefixIcon: const Icon(Icons.location_city_outlined),
@@ -393,7 +395,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 32),
 
-            // ── Save button ────────────────────────────────────────────────
+            // ── Save button (sole save action) ─────────────────────────────
             FilledButton(
               onPressed: _saving ? null : _save,
               style: FilledButton.styleFrom(

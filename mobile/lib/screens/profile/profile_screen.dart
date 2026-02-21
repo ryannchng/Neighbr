@@ -36,12 +36,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return _email.split('@').first;
   }
 
-  String get _username {
-    final u = _profile?.username?.trim();
-    if (u != null && u.isNotEmpty) return u;
-    return _email.split('@').first;
-  }
-
   String get _initials {
     final parts = _displayName.split(RegExp(r'[\s._-]+'));
     if (parts.length >= 2 &&
@@ -72,9 +66,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final row = await SupabaseClientProvider.client
           .from('users')
-          .select('role, username, full_name, city, avatar_url, interests')
+          .select('id, role, username, full_name, city, avatar_url, interests')
           .eq('id', user.id)
-          .maybeSingle(); // ← maybeSingle so a missing row returns null instead of throwing
+          .maybeSingle();
 
       if (!mounted) return;
 
@@ -85,8 +79,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _loading = false;
         });
       } else {
-        // No DB row yet – build a stub from auth metadata so Edit Profile
-        // still opens and the user can fill in their details.
         final meta = user.userMetadata ?? {};
         setState(() {
           _isOwner = false;
@@ -100,7 +92,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (_) {
       if (!mounted) return;
-      // On any error fall back to a stub derived from auth data.
       final meta = SupabaseClientProvider.currentUser?.userMetadata ?? {};
       setState(() {
         _profile = UserProfile(
@@ -115,17 +106,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  void _openEditProfile() async {
-    // _profile is now always non-null after _loadProfile completes,
-    // but guard defensively just in case.
+  Future<void> _openEditProfile() async {
     final profile = _profile;
     if (profile == null) return;
 
-    final updated = await context.push<bool>(
+    await context.push<bool>(
       AppRoutes.editProfile,
       extra: profile,
     );
-    if (updated == true && mounted) _loadProfile();
+
+    // Always reload so the namecard reflects whatever was saved,
+    // regardless of whether EditProfileScreen returned true/false/null.
+    if (mounted) _loadProfile();
   }
 
   Future<void> _signOut() async {
@@ -236,10 +228,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onRefresh: _loadProfile,
           child: CustomScrollView(
             slivers: [
-              // ── Header ───────────────────────────────────────────────────
               _buildHeader(colorScheme),
 
-              // ── Activity ─────────────────────────────────────────────────
               _buildSection(
                 colorScheme,
                 title: 'Your Activity',
@@ -250,8 +240,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'Edit Profile',
                     subtitle: 'Update your name, photo, and interests',
                     trailing: const Icon(Icons.chevron_right_rounded),
-                    // Enabled as soon as loading finishes – _profile is
-                    // always populated by then (even as a stub).
                     onTap: _loading ? null : _openEditProfile,
                   ),
                   _SettingsTile(
@@ -281,7 +269,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
 
-              // ── Owner portal ──────────────────────────────────────────────
               if (!_loading && _isOwner)
                 _buildSection(
                   colorScheme,
@@ -298,7 +285,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
 
-              // Skeleton while role loads
               if (_loading)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -325,7 +311,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
 
-              // ── Preferences ───────────────────────────────────────────────
               _buildSection(
                 colorScheme,
                 title: 'Preferences',
@@ -336,13 +321,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'Notifications',
                     subtitle: 'Manage what we send you',
                     trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () =>
-                        context.push(AppRoutes.notificationPrefs),
+                    onTap: () => context.push(AppRoutes.notificationPrefs),
                   ),
                 ],
               ),
 
-              // ── Account ───────────────────────────────────────────────────
               _buildSection(
                 colorScheme,
                 title: 'Account',
@@ -463,8 +446,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               '@${_profile!.username}',
                               style: TextStyle(
                                 fontSize: 13,
-                                color:
-                                    colorScheme.onSurface.withAlpha(140),
+                                color: colorScheme.onSurface.withAlpha(140),
                               ),
                             ),
                           ],
@@ -472,8 +454,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _email,
                             style: TextStyle(
                               fontSize: 13,
-                              color:
-                                  colorScheme.onSurface.withAlpha(128),
+                              color: colorScheme.onSurface.withAlpha(128),
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -484,16 +465,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.edit_rounded,
-                        size: 16,
-                        color: colorScheme.onSurface.withAlpha(77)),
+                    // ← pencil icon removed
                   ],
                 ),
               ),
             ),
 
-            // Interests chips (if any)
             if (_profile != null && _profile!.interests.isNotEmpty) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -505,8 +482,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: colorScheme.secondaryContainer
-                          .withAlpha(128),
+                      color:
+                          colorScheme.secondaryContainer.withAlpha(128),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(

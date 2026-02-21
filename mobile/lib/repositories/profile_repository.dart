@@ -7,15 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/supabase_client.dart';
 import '../models/user_profile_model.dart';
 
-/// Handles all user-profile operations: fetching, updating, avatar upload,
-/// and marking onboarding as complete.
-///
-/// **Supabase prerequisites** (run once in the dashboard):
-///   • `users` table must have columns:
-///       full_name TEXT, city TEXT, avatar_url TEXT, interests TEXT[]
-///   • Create a public storage bucket named `avatars` with the RLS policy:
-///       INSERT/UPDATE allowed for authenticated users where
-///       bucket_id = 'avatars' and name starts with auth.uid()
 class ProfileRepository {
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -38,8 +29,6 @@ class ProfileRepository {
 
   // ── Save profile ──────────────────────────────────────────────────────────
 
-  /// Persists name, city, an optional avatar image, and optional interests.
-  /// Pass [avatarFile] = null to leave the current avatar unchanged.
   Future<void> saveProfile({
     required String username,
     String? fullName,
@@ -52,7 +41,6 @@ class ProfileRepository {
 
     String? avatarUrl;
 
-    // ── Upload avatar ──────────────────────────────────────────────────────
     if (avatarFile != null) {
       try {
         final ext = avatarFile.path.split('.').last.toLowerCase();
@@ -71,17 +59,16 @@ class ProfileRepository {
             .getPublicUrl(path);
       } catch (e, st) {
         dev.log('Avatar upload failed (non-fatal): $e', stackTrace: st);
-        // Don't throw — profile can still be saved without avatar.
       }
     }
 
-    // ── Upsert row ────────────────────────────────────────────────────────
+    // Always write full_name and city so that clearing them is persisted.
+    // A null value in the map explicitly sets the column to NULL in Supabase.
     final updates = <String, dynamic>{
       'id': user.id,
       'username': username,
-      if (fullName != null && fullName.trim().isNotEmpty)
-        'full_name': fullName.trim(),
-      if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+      'full_name': fullName?.trim().isEmpty == true ? null : fullName?.trim(),
+      'city': city?.trim().isEmpty == true ? null : city?.trim(),
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       if (interests != null) 'interests': interests,
     };
@@ -89,8 +76,8 @@ class ProfileRepository {
     await SupabaseClientProvider.client.from('users').upsert(updates);
   }
 
-  /// Creates a minimal profile for anonymous users with a generated
-  /// `guest0000001` style username and marks onboarding complete.
+  // ── Guest profile ─────────────────────────────────────────────────────────
+
   Future<void> createGuestProfile() async {
     const prefix = 'guest';
     const width = 7;
@@ -136,8 +123,6 @@ class ProfileRepository {
 
   // ── Complete onboarding ───────────────────────────────────────────────────
 
-  /// Stamps `onboarding_completed = true` into user metadata.
-  /// GoRouter's guard reads this to decide whether to show onboarding again.
   Future<void> completeOnboarding() async {
     try {
       await SupabaseClientProvider.auth.updateUser(
