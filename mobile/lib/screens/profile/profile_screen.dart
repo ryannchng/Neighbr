@@ -43,8 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String get _initials {
-    final parts =
-        _displayName.split(RegExp(r'[\s._-]+'));
+    final parts = _displayName.split(RegExp(r'[\s._-]+'));
     if (parts.length >= 2 &&
         parts[0].isNotEmpty &&
         parts[1].isNotEmpty) {
@@ -64,38 +63,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final uid = SupabaseClientProvider.currentUser?.id;
-    if (uid == null) {
+    final user = SupabaseClientProvider.currentUser;
+    if (user == null) {
       setState(() => _loading = false);
       return;
     }
+
     try {
       final row = await SupabaseClientProvider.client
           .from('users')
           .select('role, username, full_name, city, avatar_url, interests')
-          .eq('id', uid)
-          .single();
+          .eq('id', user.id)
+          .maybeSingle(); // ← maybeSingle so a missing row returns null instead of throwing
+
       if (!mounted) return;
+
+      if (row != null) {
+        setState(() {
+          _isOwner = (row['role'] as String?) == AppConstants.roleOwner;
+          _profile = UserProfile.fromJson(row);
+          _loading = false;
+        });
+      } else {
+        // No DB row yet – build a stub from auth metadata so Edit Profile
+        // still opens and the user can fill in their details.
+        final meta = user.userMetadata ?? {};
+        setState(() {
+          _isOwner = false;
+          _profile = UserProfile(
+            id: user.id,
+            username: meta['username'] as String? ??
+                (user.email?.split('@').first),
+          );
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      // On any error fall back to a stub derived from auth data.
+      final meta = SupabaseClientProvider.currentUser?.userMetadata ?? {};
       setState(() {
-        _isOwner =
-            (row['role'] as String?) == AppConstants.roleOwner;
-        _profile = UserProfile.fromJson(row);
+        _profile = UserProfile(
+          id: SupabaseClientProvider.currentUser!.id,
+          username: meta['username'] as String? ??
+              (_email.isNotEmpty ? _email.split('@').first : null),
+        );
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
   void _openEditProfile() async {
-    if (_profile == null) return;
+    // _profile is now always non-null after _loadProfile completes,
+    // but guard defensively just in case.
+    final profile = _profile;
+    if (profile == null) return;
+
     final updated = await context.push<bool>(
       AppRoutes.editProfile,
-      extra: _profile,
+      extra: profile,
     );
-    if (updated == true) _loadProfile();
+    if (updated == true && mounted) _loadProfile();
   }
 
   Future<void> _signOut() async {
@@ -177,11 +207,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _deleteAccount() async {
     try {
-      // Calls a Supabase RPC function `delete_account` that deletes the
-      // user's data and their auth record server-side.
-      // SQL: create function delete_account() returns void as $$
-      //        delete from auth.users where id = auth.uid();
-      //      $$ language sql security definer;
       await SupabaseClientProvider.client.rpc('delete_account');
       await _authRepo.signOut();
       if (mounted) context.go(AppRoutes.login);
@@ -189,7 +214,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Could not delete account. Please contact support.'),
+            content:
+                Text('Could not delete account. Please contact support.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -224,6 +250,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'Edit Profile',
                     subtitle: 'Update your name, photo, and interests',
                     trailing: const Icon(Icons.chevron_right_rounded),
+                    // Enabled as soon as loading finishes – _profile is
+                    // always populated by then (even as a stub).
                     onTap: _loading ? null : _openEditProfile,
                   ),
                   _SettingsTile(
@@ -435,7 +463,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               '@${_profile!.username}',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: colorScheme.onSurface.withAlpha(140),
+                                color:
+                                    colorScheme.onSurface.withAlpha(140),
                               ),
                             ),
                           ],
@@ -443,7 +472,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _email,
                             style: TextStyle(
                               fontSize: 13,
-                              color: colorScheme.onSurface.withAlpha(128),
+                              color:
+                                  colorScheme.onSurface.withAlpha(128),
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -454,6 +484,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.edit_rounded,
+                        size: 16,
+                        color: colorScheme.onSurface.withAlpha(77)),
                   ],
                 ),
               ),
@@ -471,7 +505,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: colorScheme.secondaryContainer.withAlpha(128),
+                      color: colorScheme.secondaryContainer
+                          .withAlpha(128),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(

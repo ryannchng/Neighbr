@@ -443,22 +443,6 @@ class _ReviewCard extends StatelessWidget {
                   color: colorScheme.onSurface.withAlpha(210)),
             ),
           ],
-          if (review.isVerifiedVisit) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.verified_outlined, size: 13, color: colorScheme.primary),
-                const SizedBox(width: 4),
-                Text(
-                  'Verified visit',
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );

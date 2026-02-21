@@ -236,14 +236,6 @@ class _ReviewCard extends StatelessWidget {
                           fontSize: 13,
                         ),
                       ),
-                      if (review.isVerifiedVisit) ...[
-                        const SizedBox(width: 8),
-                        _Badge(
-                          icon: Icons.check_circle_outline_rounded,
-                          label: 'Verified visit',
-                          color: Colors.green,
-                        ),
-                      ],
                     ],
                   ),
                   if (review.content != null &&
@@ -314,38 +306,6 @@ class _StarRow extends StatelessWidget {
           size: 16,
           color: const Color(0xFFFBBF24),
         ),
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  const _Badge(
-      {required this.icon, required this.label, required this.color});
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withAlpha(26),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withAlpha(77)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: color),
-          const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: color,
-                  fontWeight: FontWeight.w600)),
-        ],
       ),
     );
   }

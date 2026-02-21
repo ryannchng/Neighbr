@@ -17,7 +17,6 @@ class WriteReviewScreen extends StatefulWidget {
 class _WriteReviewScreenState extends State<WriteReviewScreen> {
   final _contentController = TextEditingController();
   int _rating = 0;
-  bool _isVerifiedVisit = false;
   bool _submitting = false;
   bool get _isGuest => SupabaseClientProvider.currentUser?.isAnonymous ?? false;
 
@@ -58,7 +57,6 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
         content: _contentController.text.trim().isEmpty
             ? null
             : _contentController.text.trim(),
-        isVerifiedVisit: _isVerifiedVisit,
       );
 
       if (!mounted) return;
@@ -222,47 +220,6 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
-
-          // ── Verified visit toggle ────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colorScheme.outline.withAlpha(38)),
-            ),
-            child: SwitchListTile(
-              value: _isVerifiedVisit,
-              onChanged: (v) => setState(() => _isVerifiedVisit = v),
-              title: const Text(
-                'I visited this business in person',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500),
-              ),
-              subtitle: Text(
-                'Marks your review as a verified visit',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: colorScheme.onSurface.withAlpha(115),
-                ),
-              ),
-              secondary: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withAlpha(26),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.storefront_rounded,
-                  size: 18,
-                  color: colorScheme.primary,
-                ),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
           const SizedBox(height: 28),
 
           // ── Guidelines ───────────────────────────────────────────────────
@@ -378,3 +335,4 @@ class _GuidelineItem extends StatelessWidget {
     );
   }
 }
+
