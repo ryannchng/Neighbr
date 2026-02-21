@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/supabase_client.dart';
 import '../../models/business_model.dart';
 import '../../repositories/business_repository.dart';
 import '../../repositories/favourites_repository.dart';
+import '../../repositories/review_repository.dart';
 
 class BusinessDetailScreen extends StatefulWidget {
   const BusinessDetailScreen({super.key, required this.businessId});
@@ -17,13 +19,16 @@ class BusinessDetailScreen extends StatefulWidget {
 class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
   final _repo = BusinessRepository();
   final _favouritesRepo = FavouritesRepository();
+  final _reviewRepo = ReviewRepository();
 
   Business? _business;
   List<_BusinessHoursRow> _hours = [];
   bool _loading = true;
   bool _saved = false;
   bool _togglingSaved = false;
+  bool _hasReviewed = false;
   String? _error;
+  bool get _isGuest => SupabaseClientProvider.currentUser?.isAnonymous ?? false;
 
   @override
   void initState() {
@@ -41,6 +46,7 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
         _repo.getById(widget.businessId),
         _favouritesRepo.isSaved(widget.businessId),
         _repo.getBusinessHours(widget.businessId),
+        _reviewRepo.hasReviewed(widget.businessId),
       ]);
       if (!mounted) return;
       setState(() {
@@ -49,6 +55,7 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
         _hours = _buildWeeklyHours(
           List<Map<String, dynamic>>.from(results[2] as List),
         );
+        _hasReviewed = results[3] as bool;
         _loading = false;
       });
     } catch (_) {
@@ -121,6 +128,21 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  Future<void> _openWriteReview() async {
+    final business = _business;
+    if (business == null) return;
+
+    final result = await context.push<bool>(
+      '/businesses/${business.id}/review',
+      extra: {'businessName': business.name},
+    );
+
+    // Refresh to update review count and hasReviewed state
+    if (result == true && mounted) {
+      _load();
     }
   }
 
@@ -303,19 +325,94 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
             if (business.phone != null || business.website != null)
               _ContactCard(business: business),
             const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: () => context.push('/businesses/${business.id}/review'),
-              icon: const Icon(Icons.rate_review_outlined),
-              label: const Text('Write a review'),
-            ),
+
+            // ── Write a review ─────────────────────────────────────────────
+            if (_isGuest)
+              _GuestActionLockedBanner()
+            else if (_hasReviewed)
+              _AlreadyReviewedBanner()
+            else
+              FilledButton.icon(
+                onPressed: _openWriteReview,
+                icon: const Icon(Icons.rate_review_outlined),
+                label: const Text('Write a review'),
+              ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: () => context.push('/businesses/${business.id}/request'),
+              onPressed: _isGuest
+                  ? null
+                  : () => context.push('/businesses/${business.id}/request'),
               icon: const Icon(Icons.campaign_outlined),
-              label: const Text('Write a request'),
+              label: Text(
+                _isGuest ? 'Requests unavailable for guests' : 'Write a request',
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Already reviewed banner ───────────────────────────────────────────────────
+
+class _GuestActionLockedBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer.withAlpha(153),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.secondary.withAlpha(51)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.person_off_outlined, size: 18, color: colorScheme.secondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Guests cannot submit reviews or requests.',
+              style: TextStyle(
+                fontSize: 13.5,
+                color: colorScheme.onSecondaryContainer,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+class _AlreadyReviewedBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withAlpha(153),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.primary.withAlpha(51)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.check_circle_outline_rounded,
+              size: 18, color: colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'You\'ve already reviewed this business.',
+              style: TextStyle(
+                fontSize: 13.5,
+                color: colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -519,3 +616,4 @@ class _BusinessImage extends StatelessWidget {
         ),
       );
 }
+

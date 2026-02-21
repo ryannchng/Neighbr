@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -34,17 +32,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _repo = BusinessRepository();
-  final _searchController = TextEditingController();
 
   _HomeData? _data;
   bool _loading = true;
   String? _error;
-
-  // Debounce timer for search
-  Timer? _searchDebounce;
-  List<Business> _searchResults = [];
-  bool _searching = false;
-  bool _showSearch = false;
 
   // -------------------------------------------------------------------------
   // Lifecycle
@@ -58,8 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _searchController.dispose();
-    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -94,43 +83,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onSearchChanged(String value) {
-    _searchDebounce?.cancel();
-    if (value.trim().isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _searching = false;
-      });
-      return;
-    }
-    setState(() => _searching = true);
-    _searchDebounce = Timer(const Duration(milliseconds: 450), () async {
-      try {
-        final results = await _repo.search(value);
-        if (!mounted) return;
-        setState(() {
-          _searchResults = results;
-          _searching = false;
-        });
-      } catch (_) {
-        if (!mounted) return;
-        setState(() => _searching = false);
-      }
-    });
-  }
-
-  void _openSearch() => setState(() => _showSearch = true);
-
-  void _closeSearch() {
-    _searchDebounce?.cancel();
-    _searchController.clear();
-    setState(() {
-      _showSearch = false;
-      _searchResults = [];
-      _searching = false;
-    });
-  }
-
   // -------------------------------------------------------------------------
   // Navigation helpers
   // -------------------------------------------------------------------------
@@ -153,9 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: CustomScrollView(
             slivers: [
               _buildAppBar(colorScheme),
-              if (_showSearch) ...[
-                _buildSearchResults(),
-              ] else if (_loading) ...[
+              if (_loading) ...[
                 const SliverFillRemaining(
                   child: Center(child: CircularProgressIndicator()),
                 ),
@@ -226,23 +176,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => context.go(AppRoutes.profile),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-
-            // Search bar
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: _showSearch
-                  ? _SearchField(
-                      key: const ValueKey('search-field'),
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                      onClose: _closeSearch,
-                    )
-                  : _SearchTapTarget(
-                      key: const ValueKey('search-tap'),
-                      onTap: _openSearch,
-                    ),
             ),
             const SizedBox(height: 8),
           ],
@@ -321,42 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Search results
-  // -------------------------------------------------------------------------
-
-  Widget _buildSearchResults() {
-    if (_searching) {
-      return const SliverFillRemaining(
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_searchController.text.trim().isEmpty) {
-      return const SliverFillRemaining(
-        child: _EmptyState(
-          icon: Icons.search_rounded,
-          message: 'Start typing to search businesses.',
-        ),
-      );
-    }
-    if (_searchResults.isEmpty) {
-      return SliverFillRemaining(
-        child: _EmptyState(
-          icon: Icons.search_off_rounded,
-          message: 'No results for "${_searchController.text}".',
-        ),
-      );
-    }
-    return SliverList.separated(
-      itemCount: _searchResults.length,
-      separatorBuilder: (_, __) =>
-          const Divider(height: 1, indent: 20, endIndent: 20),
-      itemBuilder: (context, i) => _BusinessListTile(
-        business: _searchResults[i],
-        onTap: () => _goToBusiness(_searchResults[i].id),
-      ),
-    );
-  }
 }
 
 // ============================================================================
@@ -390,126 +287,6 @@ class _AvatarButton extends StatelessWidget {
     );
   }
 }
-
-// ---- Search tap target (looks like a field but is just a tap target) -------
-
-class _SearchTapTarget extends StatelessWidget {
-  const _SearchTapTarget({super.key, required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest.withAlpha(153),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: colorScheme.outline.withAlpha(51),
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Row(
-          children: [
-            Icon(Icons.search_rounded,
-                size: 20, color: colorScheme.onSurface.withAlpha(102)),
-            const SizedBox(width: 10),
-            Text(
-              'Search businesses, cities…',
-              style: TextStyle(
-                fontSize: 14.5,
-                color: colorScheme.onSurface.withAlpha(102),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---- Active search field ---------------------------------------------------
-
-class _SearchField extends StatefulWidget {
-  const _SearchField({
-    super.key,
-    required this.controller,
-    required this.onChanged,
-    required this.onClose,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClose;
-
-  @override
-  State<_SearchField> createState() => _SearchFieldState();
-}
-
-class _SearchFieldState extends State<_SearchField> {
-  late final FocusNode _focus;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus = FocusNode();
-    // Auto-focus when shown
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
-  }
-
-  @override
-  void dispose() {
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withAlpha(153),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.primary.withAlpha(102)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded,
-              size: 20, color: colorScheme.primary.withAlpha(179)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: widget.controller,
-              focusNode: _focus,
-              onChanged: widget.onChanged,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Search businesses, cities…',
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-              style: const TextStyle(fontSize: 14.5),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close_rounded, size: 18),
-            onPressed: widget.onClose,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            tooltip: 'Clear search',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 
 // ---- Featured card (horizontal carousel) -----------------------------------
 
@@ -924,9 +701,8 @@ class _StarRow extends StatelessWidget {
 // ---- Empty state -----------------------------------------------------------
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({this.icon = Icons.storefront_outlined, required this.message});
+  const _EmptyState({required this.message});
 
-  final IconData icon;
   final String message;
 
   @override
@@ -938,7 +714,8 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: colorScheme.onSurface.withAlpha(51)),
+            Icon(Icons.storefront_outlined,
+                size: 48, color: colorScheme.onSurface.withAlpha(51)),
             const SizedBox(height: 12),
             Text(
               message,
@@ -994,3 +771,4 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
+

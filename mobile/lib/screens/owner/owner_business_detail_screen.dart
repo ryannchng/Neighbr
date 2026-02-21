@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
-import '../../core/category_icon_mapper.dart';
 import '../../core/router.dart';
 import '../../models/business_model.dart';
 import '../../repositories/business_request_repository.dart';
 import '../../repositories/owner_repository.dart';
 
+
 class OwnerBusinessDetailScreen extends StatefulWidget {
   const OwnerBusinessDetailScreen({super.key, required this.businessId});
+
   final String businessId;
 
   @override
@@ -20,15 +22,19 @@ class _OwnerBusinessDetailScreenState
     extends State<OwnerBusinessDetailScreen>
     with SingleTickerProviderStateMixin {
   final _repo = OwnerRepository();
+  final _requestRepo = BusinessRequestRepository();
+
+  late TabController _tabController;
 
   Business? _business;
   List<ReviewSummary> _reviews = [];
+  RatingDistribution _distribution = const RatingDistribution(counts: [0, 0, 0, 0, 0]);
   List<BusinessRequest> _requests = [];
-  RatingDistribution? _distribution;
+
   bool _loading = true;
   String? _error;
 
-  late final TabController _tabController;
+  final Set<String> _processingIds = {};
 
   @override
   void initState() {
@@ -53,8 +59,9 @@ class _OwnerBusinessDetailScreenState
         _repo.getBusinessById(widget.businessId),
         _repo.getReviews(widget.businessId),
         _repo.getRatingDistribution(widget.businessId),
-        BusinessRequestRepository().getRequestsForBusiness(widget.businessId),
+        _requestRepo.getRequestsForBusiness(widget.businessId),
       ]);
+
       if (!mounted) return;
       setState(() {
         _business = results[0] as Business?;
@@ -66,85 +73,41 @@ class _OwnerBusinessDetailScreenState
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load business details.';
+        _error = 'Failed to load business details: $e';
         _loading = false;
       });
     }
   }
 
-  void _editBusiness() {
-    context
-        .push(AppRoutes.ownerBusinessForm,
-            extra: _business)
-        .then((_) => _load());
-  }
-
-  Future<void> _deleteBusiness() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final colorScheme = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          title: const Text('Delete listing?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                  'This will permanently delete your business listing and all associated data. This cannot be undone.'),
-              const SizedBox(height: 18),
-              OutlinedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: colorScheme.error,
-                  foregroundColor: colorScheme.onError,
-                  side: BorderSide.none,
-                ),
-                child: const Text('Delete'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-    if (confirmed != true) return;
+  Future<void> _claimRequest(String requestId) async {
+    setState(() => _processingIds.add(requestId));
     try {
-      await _repo.deleteBusiness(widget.businessId);
-      if (mounted) context.pop();
-    } catch (_) {
+      await _requestRepo.takeRequest(requestId);
+      await _load();
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete listing.')),
+          SnackBar(content: Text('Could not claim request: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _processingIds.remove(requestId));
     }
   }
 
-  Future<void> _takeRequest(BusinessRequest request) async {
+  Future<void> _markDone(String requestId) async {
+    setState(() => _processingIds.add(requestId));
     try {
-      await BusinessRequestRepository().takeRequest(request.id);
-      if (!mounted) return;
+      await _requestRepo.markDone(requestId);
       await _load();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Request claimed.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not claim request.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not mark as done: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processingIds.remove(requestId));
     }
   }
 
@@ -153,745 +116,287 @@ class _OwnerBusinessDetailScreenState
     final colorScheme = Theme.of(context).colorScheme;
 
     if (_loading) {
-      return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (_error != null || _business == null) {
+
+    if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Error')),
+        appBar: AppBar(title: const Text('Business')),
         body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
             child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error ?? 'Business not found'),
-            const SizedBox(height: 16),
-            FilledButton.tonal(onPressed: _load, child: const Text('Retry')),
-          ],
-        )),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                FilledButton.tonal(onPressed: _load, child: const Text('Try again')),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
-    final b = _business!;
+    final business = _business;
+    if (business == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Business')),
+        body: const Center(child: Text('Business not found.')),
+      );
+    }
+
+    final openCount = _requests.where((r) => r.isOpen).length;
+    final claimedCount = _requests.where((r) => r.isClaimed).length;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          _buildSliverAppBar(b, colorScheme, innerBoxIsScrolled),
-          SliverToBoxAdapter(child: _buildAnalyticsSummary(b, colorScheme)),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _TabBarDelegate(
-              TabBar(
-                controller: _tabController,
-                tabs: const [
-                  Tab(text: 'Analytics'),
-                  Tab(text: 'Reviews'),
-                  Tab(text: 'Requests'),
-                  Tab(text: 'Details'),
-                ],
-              ),
-            ),
+      appBar: AppBar(
+        title: Text(business.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => context
+                .push(AppRoutes.ownerBusinessForm, extra: business)
+                .then((_) => _load()),
           ),
         ],
-        body: TabBarView(
+        bottom: TabBar(
           controller: _tabController,
-          children: [
-            _AnalyticsTab(business: b, distribution: _distribution),
-            _ReviewsTab(reviews: _reviews),
-            _RequestsTab(
-              requests: _requests,
-              onTakeRequest: _takeRequest,
-            ),
-            _DetailsTab(business: b),
-          ],
-        ),
-      ),
-    );
-  }
-
-  SliverAppBar _buildSliverAppBar(
-      Business b, ColorScheme colorScheme, bool innerBoxIsScrolled) {
-    return SliverAppBar(
-      expandedHeight: 220,
-      pinned: true,
-      forceElevated: innerBoxIsScrolled,
-      title: Text(b.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.edit_rounded),
-          tooltip: 'Edit listing',
-          onPressed: _editBusiness,
-        ),
-        PopupMenuButton<String>(
-          onSelected: (v) {
-            if (v == 'delete') _deleteBusiness();
-          },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_rounded,
-                      size: 18, color: colorScheme.error),
-                  const SizedBox(width: 10),
-                  Text('Delete listing',
-                      style: TextStyle(color: colorScheme.error)),
-                ],
+          isScrollable: true,
+          tabs: [
+            const Tab(text: 'Analytics'),
+            const Tab(text: 'Reviews'),
+            Tab(
+              child: _RequestsTabLabel(
+                openCount: openCount,
+                claimedCount: claimedCount,
               ),
             ),
+            const Tab(text: 'Details'),
           ],
         ),
-      ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: b.primaryImage != null
-            ? Image.network(b.primaryImage!, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                    color: colorScheme.surfaceContainerHighest,
-                    child: Icon(Icons.store_outlined,
-                        size: 48, color: colorScheme.onSurface.withAlpha(64))))
-            : Container(
-                color: colorScheme.surfaceContainerHighest,
-                child: Icon(Icons.store_outlined,
-                    size: 48, color: colorScheme.onSurface.withAlpha(64))),
       ),
-    );
-  }
-
-  Widget _buildAnalyticsSummary(Business b, ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Row(
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          _MiniStatCard(
-            icon: Icons.star_rounded,
-            value: b.avgRating.toStringAsFixed(1),
-            label: 'Avg Rating',
-            color: const Color(0xFFFBBF24),
+          _AnalyticsTab(
+            business: business,
+            reviews: _reviews,
+            distribution: _distribution,
           ),
-          const SizedBox(width: 10),
-          _MiniStatCard(
-            icon: Icons.reviews_rounded,
-            value: '${b.reviewCount}',
-            label: 'Reviews',
-            color: colorScheme.primary,
+          _ReviewsTab(reviews: _reviews),
+          _RequestsTab(
+            requests: _requests,
+            processingIds: _processingIds,
+            onClaim: _claimRequest,
+            onMarkDone: _markDone,
           ),
-          const SizedBox(width: 10),
-          _MiniStatCard(
-            icon: b.isVerified
-                ? Icons.verified_rounded
-                : Icons.pending_rounded,
-            value: b.isVerified ? 'Verified' : 'Pending',
-            label: 'Status',
-            color: b.isVerified ? Colors.green : colorScheme.tertiary,
-          ),
+          _DetailsTab(business: business),
         ],
       ),
     );
   }
 }
 
-// ============================================================================
-// Analytics Tab
-// ============================================================================
+// ---------------------------------------------------------------------------
+// Requests tab label with badge
+// ---------------------------------------------------------------------------
 
-class _AnalyticsTab extends StatelessWidget {
-  const _AnalyticsTab({
-    required this.business,
-    required this.distribution,
+class _RequestsTabLabel extends StatelessWidget {
+  const _RequestsTabLabel({
+    required this.openCount,
+    required this.claimedCount,
   });
 
-  final Business business;
-  final RatingDistribution? distribution;
+  final int openCount;
+  final int claimedCount;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final dist = distribution;
-
-    return ListView(
-      padding: const EdgeInsets.all(20),
+    final pending = openCount + claimedCount;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Rating breakdown
-        _SectionCard(
-          title: 'Rating Breakdown',
-          child: dist == null || dist.total == 0
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                    child: Text('No reviews yet',
-                        style: TextStyle(
-                            color: colorScheme.onSurface.withAlpha(128))),
-                  ),
-                )
-              : Column(
-                  children: List.generate(5, (i) {
-                    final star = 5 - i;
-                    final count = dist.counts[star - 1];
-                    final pct =
-                        dist.total > 0 ? count / dist.total : 0.0;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 52,
-                            child: Row(
-                              children: [
-                                Text('$star',
-                                    style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600)),
-                                const SizedBox(width: 3),
-                                const Icon(Icons.star_rounded,
-                                    size: 13,
-                                    color: Color(0xFFFBBF24)),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: pct,
-                                minHeight: 8,
-                                backgroundColor: colorScheme
-                                    .surfaceContainerHighest,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(
-                                        const Color(0xFFFBBF24)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          SizedBox(
-                            width: 28,
-                            child: Text(
-                              '$count',
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: colorScheme.onSurface.withAlpha(140),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ),
-        ),
-        const SizedBox(height: 16),
-
-        // Business performance highlights
-        _SectionCard(
-          title: 'Performance',
-          child: Column(
-            children: [
-              _InfoRow(
-                icon: Icons.star_half_rounded,
-                label: 'Average rating',
-                value: '${business.avgRating.toStringAsFixed(2)} / 5.00',
+        const Text('Requests'),
+        if (pending > 0) ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$pending',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
               ),
-              const Divider(height: 20),
-              _InfoRow(
-                icon: Icons.reviews_outlined,
-                label: 'Total reviews',
-                value: '${business.reviewCount}',
-              ),
-              const Divider(height: 20),
-              _InfoRow(
-                icon: Icons.calendar_today_rounded,
-                label: 'Listed since',
-                value: _formatDate(business.createdAt),
-              ),
-              const Divider(height: 20),
-              _InfoRow(
-                icon: business.isVerified
-                    ? Icons.verified_rounded
-                    : Icons.pending_rounded,
-                label: 'Verification',
-                value: business.isVerified ? 'Verified business' : 'Not verified',
-                valueColor: business.isVerified
-                    ? Colors.green
-                    : colorScheme.tertiary,
-              ),
-            ],
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-
-        // Quick tips card
-        _SectionCard(
-          title: '💡 Tips to grow your listing',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _TipItem(
-                text: business.primaryImage == null
-                    ? 'Add photos to attract more customers.'
-                    : 'Add more photos to showcase your business.',
-              ),
-              _TipItem(
-                text: business.reviewCount < 5
-                    ? 'Ask your regular customers to leave a review.'
-                    : 'Keep responding to reviews to build trust.',
-              ),
-              _TipItem(
-                text: business.description.length < 100
-                    ? 'Write a detailed description (100+ words).'
-                    : 'Keep your business hours up to date.',
-              ),
-            ],
-          ),
-        ),
+        ],
       ],
     );
   }
-
-  String _formatDate(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
 }
 
-// ============================================================================
-// Reviews Tab
-// ============================================================================
-
-class _ReviewsTab extends StatelessWidget {
-  const _ReviewsTab({required this.reviews});
-  final List<ReviewSummary> reviews;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    if (reviews.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.rate_review_outlined,
-                size: 48, color: colorScheme.onSurface.withAlpha(51)),
-            const SizedBox(height: 12),
-            Text(
-              'No reviews yet',
-              style: TextStyle(
-                  fontSize: 15,
-                  color: colorScheme.onSurface.withAlpha(128)),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(20),
-      itemCount: reviews.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, i) => _ReviewCard(review: reviews[i]),
-    );
-  }
-}
+// ---------------------------------------------------------------------------
+// Requests tab
+// ---------------------------------------------------------------------------
 
 class _RequestsTab extends StatelessWidget {
   const _RequestsTab({
     required this.requests,
-    required this.onTakeRequest,
+    required this.processingIds,
+    required this.onClaim,
+    required this.onMarkDone,
   });
 
   final List<BusinessRequest> requests;
-  final ValueChanged<BusinessRequest> onTakeRequest;
+  final Set<String> processingIds;
+  final void Function(String) onClaim;
+  final void Function(String) onMarkDone;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     if (requests.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.campaign_outlined,
-                size: 48, color: colorScheme.onSurface.withAlpha(51)),
-            const SizedBox(height: 12),
-            Text(
-              'No requests yet',
-              style: TextStyle(
-                fontSize: 15,
-                color: colorScheme.onSurface.withAlpha(128),
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.campaign_outlined, size: 48, color: Colors.grey),
+              SizedBox(height: 12),
+              Text(
+                'No requests yet',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
-            ),
-          ],
+              SizedBox(height: 6),
+              Text(
+                'Requests from customers will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(20),
-      itemCount: requests.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, i) {
-        final request = requests[i];
-        final isOpen = request.isOpen;
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outline.withAlpha(38)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      request.requesterUsername ?? 'Customer',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: isOpen
-                          ? colorScheme.primaryContainer
-                          : colorScheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      isOpen ? 'Open' : request.status,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isOpen
-                            ? colorScheme.onPrimaryContainer
-                            : colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                request.requestText,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  height: 1.45,
-                  color: colorScheme.onSurface.withAlpha(204),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (request.maxBudget != null)
-                    _Badge(
-                      label: 'Budget: \$${request.maxBudget!.toStringAsFixed(0)}',
-                      color: colorScheme.primary,
-                      icon: Icons.attach_money_rounded,
-                    ),
-                  if (request.neededBy != null)
-                    _Badge(
-                      label:
-                          'Need by ${request.neededBy!.month}/${request.neededBy!.day}/${request.neededBy!.year}',
-                      color: colorScheme.tertiary,
-                      icon: Icons.event_rounded,
-                    ),
-                ],
-              ),
-              if (isOpen) ...[
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () => onTakeRequest(request),
-                  child: const Text('Take request'),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.review});
-  final ReviewSummary review;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outline.withAlpha(38)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header row
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: colorScheme.primaryContainer,
-                child: Text(
-                  review.authorUsername[0].toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      review.authorUsername,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                    Text(
-                      _formatDate(review.createdAt),
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: colorScheme.onSurface.withAlpha(115),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Stars
-              Row(
-                children: List.generate(
-                  5,
-                  (i) => Icon(
-                    i < review.rating
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
-                    size: 15,
-                    color: const Color(0xFFFBBF24),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Review content
-          if (review.content != null && review.content!.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              review.content!,
-              style: TextStyle(
-                fontSize: 13.5,
-                color: colorScheme.onSurface.withAlpha(204),
-                height: 1.5,
-              ),
-            ),
-          ],
-
-          // Badges
-          if (review.isVerifiedVisit || review.isFlagged) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              children: [
-                if (review.isVerifiedVisit)
-                  _Badge(
-                    label: 'Verified visit',
-                    color: Colors.green,
-                    icon: Icons.check_circle_outline_rounded,
-                  ),
-                if (review.isFlagged)
-                  _Badge(
-                    label: 'Flagged',
-                    color: colorScheme.error,
-                    icon: Icons.flag_outlined,
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
-}
-
-class _Badge extends StatelessWidget {
-  const _Badge({required this.label, required this.color, required this.icon});
-  final String label;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withAlpha(26),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withAlpha(77)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11.5, color: color, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Details Tab
-// ============================================================================
-
-class _DetailsTab extends StatelessWidget {
-  const _DetailsTab({required this.business});
-  final Business business;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final open = requests.where((r) => r.isOpen).toList();
+    final inProgress = requests.where((r) => r.isClaimed).toList();
+    final done = requests.where((r) => r.isCompleted).toList();
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        _SectionCard(
-          title: 'Basic Info',
-          child: Column(
-            children: [
-              _InfoRow(
-                icon: Icons.store_rounded,
-                label: 'Name',
-                value: business.name,
-              ),
-              if (business.category != null) ...[
-                const Divider(height: 20),
-                _InfoRow(
-                  icon: CategoryIconMapper.fromKey(
-                    business.category!.iconKey,
-                    fallbackName: business.category!.name,
-                  ),
-                  label: 'Category',
-                  value: business.category!.name,
-                ),
-              ],
-              if (business.description.isNotEmpty) ...[
-                const Divider(height: 20),
-                _InfoRow(
-                  icon: Icons.description_rounded,
-                  label: 'Description',
-                  value: business.description,
-                ),
-              ],
-              if (business.priceRangeLabel != null) ...[
-                const Divider(height: 20),
-                _InfoRow(
-                  icon: Icons.attach_money_rounded,
-                  label: 'Price range',
-                  value: business.priceRangeLabel!,
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        _SectionCard(
-          title: 'Location & Contact',
-          child: Column(
-            children: [
-              if (business.address != null) ...[
-                _InfoRow(
-                  icon: Icons.location_on_rounded,
-                  label: 'Address',
-                  value: business.address!,
-                ),
-                const Divider(height: 20),
-              ],
-              if (business.location != null) ...[
-                _InfoRow(
-                  icon: Icons.map_rounded,
-                  label: 'City / Province',
-                  value: business.location!,
-                ),
-                const Divider(height: 20),
-              ],
-              if (business.phone != null) ...[
-                _InfoRow(
-                  icon: Icons.phone_rounded,
-                  label: 'Phone',
-                  value: business.phone!,
-                ),
-                const Divider(height: 20),
-              ],
-              if (business.website != null)
-                _InfoRow(
-                  icon: Icons.language_rounded,
-                  label: 'Website',
-                  value: business.website!,
-                  valueColor: colorScheme.primary,
-                )
-              else
-                _InfoRow(
-                  icon: Icons.language_rounded,
-                  label: 'Website',
-                  value: 'Not set',
-                  valueColor: colorScheme.onSurface.withAlpha(102),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
+        if (open.isNotEmpty) ...[
+          _SectionHeader(label: 'Open', count: open.length, color: Colors.orange),
+          const SizedBox(height: 8),
+          ...open.map((r) => _RequestCard(
+                request: r,
+                isProcessing: processingIds.contains(r.id),
+                onClaim: () => onClaim(r.id),
+                onMarkDone: null,
+              )),
+          const SizedBox(height: 20),
+        ],
+        if (inProgress.isNotEmpty) ...[
+          _SectionHeader(label: 'In Progress', count: inProgress.length, color: Colors.blue),
+          const SizedBox(height: 8),
+          ...inProgress.map((r) => _RequestCard(
+                request: r,
+                isProcessing: processingIds.contains(r.id),
+                onClaim: null,
+                onMarkDone: () => onMarkDone(r.id),
+              )),
+          const SizedBox(height: 20),
+        ],
+        if (done.isNotEmpty) ...[
+          _SectionHeader(label: 'Done', count: done.length, color: Colors.green),
+          const SizedBox(height: 8),
+          ...done.map((r) => _RequestCard(
+                request: r,
+                isProcessing: false,
+                onClaim: null,
+                onMarkDone: null,
+              )),
+        ],
       ],
     );
   }
 }
 
-// ============================================================================
-// Shared sub-widgets
-// ============================================================================
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.child});
-  final String title;
-  final Widget child;
+  final String label;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(
+            color: color.withAlpha(30),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RequestCard extends StatelessWidget {
+  const _RequestCard({
+    required this.request,
+    required this.isProcessing,
+    required this.onClaim,
+    required this.onMarkDone,
+  });
+
+  final BusinessRequest request;
+  final bool isProcessing;
+  final VoidCallback? onClaim;
+  final VoidCallback? onMarkDone;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final dateStr = DateFormat('MMM d, yyyy').format(request.createdAt.toLocal());
+
+    final (chipColor, chipLabel, chipIcon) = switch (request.status) {
+      'open' => (Colors.orange, 'Open', Icons.radio_button_unchecked),
+      'claimed' => (Colors.blue, 'In Progress', Icons.timelapse_rounded),
+      'completed' => (Colors.green, 'Done', Icons.check_circle_rounded),
+      _ => (Colors.grey, request.status, Icons.help_outline),
+    };
+
     return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
@@ -900,20 +405,129 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              Icon(Icons.person_outline_rounded,
+                  size: 15, color: colorScheme.onSurface.withAlpha(128)),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  request.requesterUsername ?? 'Customer',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: chipColor.withAlpha(26),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: chipColor.withAlpha(77)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(chipIcon, size: 11, color: chipColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      chipLabel,
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w700, color: chipColor),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: child,
+          const SizedBox(height: 10),
+          Text(
+            request.requestText,
+            style: TextStyle(
+                fontSize: 14, height: 1.4, color: colorScheme.onSurface.withAlpha(210)),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 6,
+            children: [
+              _MetaChip(icon: Icons.calendar_today_outlined, label: dateStr),
+              if (request.maxBudget != null)
+                _MetaChip(
+                  icon: Icons.attach_money_rounded,
+                  label: 'Budget: \$${request.maxBudget!.toStringAsFixed(0)}',
+                ),
+              if (request.neededBy != null)
+                _MetaChip(
+                  icon: Icons.event_outlined,
+                  label: 'By ${DateFormat('MMM d').format(request.neededBy!.toLocal())}',
+                ),
+            ],
+          ),
+          if (onClaim != null || onMarkDone != null) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (isProcessing)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (onClaim != null)
+                  FilledButton.tonal(
+                    onPressed: onClaim,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                    ),
+                    child: const Text('Claim'),
+                  )
+                else if (onMarkDone != null)
+                  FilledButton(
+                    onPressed: onMarkDone,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Mark as done'),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 190),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: colorScheme.onSurface.withAlpha(128)),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withAlpha(153)),
+            ),
           ),
         ],
       ),
@@ -921,155 +535,323 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
+// ---------------------------------------------------------------------------
+// Analytics tab
+// ---------------------------------------------------------------------------
+
+class _AnalyticsTab extends StatelessWidget {
+  const _AnalyticsTab({
+    required this.business,
+    required this.reviews,
+    required this.distribution,
   });
 
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color? valueColor;
+  final Business business;
+  final List<ReviewSummary> reviews;
+  final RatingDistribution distribution;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final totalReviews = reviews.length;
+    final avg = business.avgRating;
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
       children: [
-        Icon(icon, size: 18, color: colorScheme.primary),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: colorScheme.onSurface.withAlpha(115),
-                  fontWeight: FontWeight.w500,
-                ),
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                label: 'Avg Rating',
+                value: avg.toStringAsFixed(1),
+                icon: Icons.star_rounded,
+                color: const Color(0xFFFBBF24),
               ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: valueColor ?? colorScheme.onSurface,
-                ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                label: 'Total Reviews',
+                value: '$totalReviews',
+                icon: Icons.reviews_rounded,
+                color: colorScheme.primary,
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Rating Breakdown',
+          style: TextStyle(
+              fontSize: 15, fontWeight: FontWeight.w700, color: colorScheme.onSurface),
+        ),
+        const SizedBox(height: 12),
+        ...List.generate(5, (i) {
+          final star = 5 - i;
+          final count = distribution.counts[star - 1];
+          final pct = distribution.total == 0 ? 0.0 : count / distribution.total;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Text('$star',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(width: 4),
+                const Icon(Icons.star_rounded, size: 13, color: Color(0xFFFBBF24)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: pct,
+                      minHeight: 8,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
+                      valueColor:
+                          const AlwaysStoppedAnimation(Color(0xFFFBBF24)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 24,
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                        fontSize: 12, color: colorScheme.onSurface.withAlpha(140)),
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 20),
+        _InfoTile(
+          icon: Icons.verified_rounded,
+          label: 'Verification',
+          value: business.isVerified ? 'Verified' : 'Not verified',
+          color: business.isVerified ? Colors.green : Colors.grey,
+        ),
+        const SizedBox(height: 8),
+        _InfoTile(
+          icon: Icons.calendar_month_rounded,
+          label: 'Listed since',
+          value: DateFormat('MMM d, yyyy').format(business.createdAt),
+          color: colorScheme.primary,
         ),
       ],
     );
   }
 }
 
-class _MiniStatCard extends StatelessWidget {
-  const _MiniStatCard({
-    required this.icon,
-    required this.value,
+class _StatCard extends StatelessWidget {
+  const _StatCard({
     required this.label,
+    required this.value,
+    required this.icon,
     required this.color,
   });
 
-  final IconData icon;
-  final String value;
   final String label;
+  final String value;
+  final IconData icon;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.outline.withAlpha(38)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w800),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                  fontSize: 10.5,
-                  color: colorScheme.onSurface.withAlpha(115)),
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colorScheme.outline.withAlpha(38)),
       ),
-    );
-  }
-}
-
-class _TipItem extends StatelessWidget {
-  const _TipItem({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.arrow_right_rounded,
-              size: 18, color: colorScheme.primary),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 13.5,
-                color: colorScheme.onSurface.withAlpha(204),
-              ),
-            ),
-          ),
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 8),
+          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+          Text(label,
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withAlpha(128))),
         ],
       ),
     );
   }
 }
 
-// ============================================================================
-// SliverPersistentHeader delegate for pinned tab bar
-// ============================================================================
+class _InfoTile extends StatelessWidget {
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
-class _TabBarDelegate extends SliverPersistentHeaderDelegate {
-  const _TabBarDelegate(this.tabBar);
-  final TabBar tabBar;
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
 
   @override
-  double get minExtent => tabBar.preferredSize.height;
-  @override
-  double get maxExtent => tabBar.preferredSize.height;
-
-  @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: tabBar,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outline.withAlpha(38)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Text(label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 13, color: colorScheme.onSurface.withAlpha(160))),
+        ],
+      ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Reviews tab
+// ---------------------------------------------------------------------------
+
+class _ReviewsTab extends StatelessWidget {
+  const _ReviewsTab({required this.reviews});
+
+  final List<ReviewSummary> reviews;
 
   @override
-  bool shouldRebuild(covariant _TabBarDelegate oldDelegate) =>
-      tabBar != oldDelegate.tabBar;
+  Widget build(BuildContext context) {
+    if (reviews.isEmpty) {
+      return const Center(
+        child: Text('No reviews yet.', style: TextStyle(color: Colors.grey)),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: reviews.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, i) {
+        final review = reviews[i];
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    review.authorUsername,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: List.generate(
+                      5,
+                      (j) => Icon(
+                        j < review.rating
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                        size: 14,
+                        color: const Color(0xFFFBBF24),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (review.content != null && review.content!.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  review.content!,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    color: Theme.of(context).colorScheme.onSurface.withAlpha(190),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 4),
+              Text(
+                DateFormat('MMM d, yyyy').format(review.createdAt.toLocal()),
+                style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Details tab
+// ---------------------------------------------------------------------------
+
+class _DetailsTab extends StatelessWidget {
+  const _DetailsTab({required this.business});
+
+  final Business business;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        if (business.description.trim().isNotEmpty) ...[
+          const Text('Description',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Text(business.description,
+              style: TextStyle(
+                  fontSize: 14, height: 1.45, color: colorScheme.onSurface.withAlpha(200))),
+          const SizedBox(height: 20),
+        ],
+        if (business.location != null)
+          _DetailRow(icon: Icons.location_on_outlined, value: business.location!),
+        if (business.phone != null)
+          _DetailRow(icon: Icons.phone_outlined, value: business.phone!),
+        if (business.website != null)
+          _DetailRow(icon: Icons.language_outlined, value: business.website!),
+        if (business.category != null)
+          _DetailRow(icon: Icons.category_rounded, value: business.category!.name),
+      ],
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.icon, required this.value});
+
+  final IconData icon;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 14, color: colorScheme.onSurface.withAlpha(200))),
+          ),
+        ],
+      ),
+    );
+  }
 }

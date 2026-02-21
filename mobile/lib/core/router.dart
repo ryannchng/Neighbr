@@ -14,6 +14,7 @@ import 'package:mobile/screens/auth/reset_password_screen.dart';
 import 'package:mobile/screens/home/home_screen.dart';
 import 'package:mobile/screens/business/business_detail_screen.dart';
 import 'package:mobile/screens/business/write_request_screen.dart';
+import 'package:mobile/screens/business/write_review_screen.dart';
 import 'package:mobile/screens/owner/owner_dashboard_screen.dart';
 import 'package:mobile/screens/owner/owner_business_detail_screen.dart';
 import 'package:mobile/screens/owner/owner_business_form_screen.dart';
@@ -143,9 +144,16 @@ class AppRouter {
                 routes: [
                   GoRoute(
                     path: 'review',
-                    builder: (context, state) => _PlaceholderScreen(
-                      label: 'Write Review for ${state.pathParameters['id']}',
-                    ),
+                    builder: (context, state) {
+                      final extra = state.extra as Map<String, dynamic>?;
+                      final businessId = state.pathParameters['id']!;
+                      final businessName =
+                          extra?['businessName'] as String? ?? '';
+                      return WriteReviewScreen(
+                        businessId: businessId,
+                        businessName: businessName,
+                      );
+                    },
                   ),
                   GoRoute(
                     path: 'request',
@@ -196,8 +204,6 @@ class AppRouter {
     final user = SupabaseClientProvider.currentUser;
     final isLoggedIn = user != null;
 
-    // When the user clicks a password reset link, Supabase fires
-    // passwordRecovery before the session is fully established.
     final lastEvent = _authNotifier.lastEvent;
     if (lastEvent == AuthChangeEvent.passwordRecovery) {
       if (loc != AppRoutes.resetPassword) return AppRoutes.resetPassword;
@@ -207,10 +213,8 @@ class AppRouter {
     final isEmailConfirmed = user?.emailConfirmedAt != null ||
         user?.userMetadata?['email_verified'] == true;
 
-    // Anonymous users have no email to verify — treat them as confirmed.
     final isAnonymous = user?.isAnonymous ?? false;
 
-    // Check if onboarding has been completed (stored in user metadata).
     final hasCompletedOnboarding =
         user?.userMetadata?['onboarding_completed'] == true;
 
@@ -220,18 +224,14 @@ class AppRouter {
         loc == AppRoutes.emailVerification;
     final isOnOnboarding = loc == AppRoutes.onboarding;
 
-    // Let the splash handle its own redirect logic.
     if (isOnSplash) return null;
 
-    // Not logged in → send to login (unless already on an auth screen).
     if (!isLoggedIn && !isOnAuth) return AppRoutes.login;
 
     if (isLoggedIn && isAnonymous && (isOnAuth || isOnOnboarding)) {
       return AppRoutes.home;
     }
 
-    // Logged in but email not confirmed → send to verification screen.
-    // Anonymous sessions bypass this check — they have no email to confirm.
     if (isLoggedIn &&
         !isAnonymous &&
         !isEmailConfirmed &&
@@ -240,7 +240,6 @@ class AppRouter {
           '?email=${Uri.encodeComponent(user.email ?? '')}';
     }
 
-    // Logged in, confirmed, but onboarding not done → send to onboarding.
     if (isLoggedIn &&
         !isAnonymous &&
         isEmailConfirmed &&
@@ -249,7 +248,6 @@ class AppRouter {
       return AppRoutes.onboarding;
     }
 
-    // Logged in and confirmed (or anonymous) → don't linger on auth screens or onboarding.
     if (isLoggedIn && (isEmailConfirmed || isAnonymous) && hasCompletedOnboarding) {
       if (isOnAuth || isOnOnboarding) return AppRoutes.home;
     }
@@ -360,22 +358,6 @@ class _SplashScreenState extends State<_SplashScreen> {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(child: CircularProgressIndicator()),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Placeholder
-// ---------------------------------------------------------------------------
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(label)),
-      body: Center(child: Text(label)),
     );
   }
 }

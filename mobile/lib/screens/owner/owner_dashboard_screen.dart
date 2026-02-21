@@ -5,6 +5,7 @@ import '../../core/router.dart';
 import '../../core/supabase_client.dart';
 import '../../models/business_model.dart';
 import '../../repositories/auth_repository.dart';
+import '../../repositories/business_request_repository.dart';
 import '../../repositories/owner_repository.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
@@ -17,8 +18,11 @@ class OwnerDashboardScreen extends StatefulWidget {
 class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   final _repo = OwnerRepository();
   final _authRepo = AuthRepository();
+  final _requestRepo = BusinessRequestRepository();
 
   List<Business> _businesses = [];
+  // Map of business ID → open request count
+  Map<String, int> _requestCounts = {};
   bool _loading = true;
   String? _error;
 
@@ -35,9 +39,22 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     });
     try {
       final businesses = await _repo.getMyBusinesses();
+
+      // Fetch open request counts for all businesses in parallel
+      Map<String, int> requestCounts = {};
+      if (businesses.isNotEmpty) {
+        final counts = await Future.wait(
+          businesses.map((b) => _requestRepo
+              .getOutstandingCountForBusinesses([b.id])
+              .then((count) => MapEntry(b.id, count))),
+        );
+        requestCounts = Map.fromEntries(counts);
+      }
+
       if (!mounted) return;
       setState(() {
         _businesses = businesses;
+        _requestCounts = requestCounts;
         _loading = false;
       });
     } catch (e) {
@@ -59,7 +76,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   }
 
   void _openBusiness(Business b) {
-    context.push(AppRoutes.ownerBusinessDetail.replaceFirst(':id', b.id))
+    context
+        .push(AppRoutes.ownerBusinessDetail.replaceFirst(':id', b.id))
         .then((_) => _load());
   }
 
@@ -67,17 +85,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   // Summary totals across all businesses
   // -------------------------------------------------------------------------
 
-  double get _totalAvgRating {
-    if (_businesses.isEmpty) return 0;
-    final weighted = _businesses.fold<double>(
-        0, (acc, b) => acc + b.avgRating * b.reviewCount);
-    final totalReviews =
-        _businesses.fold<int>(0, (acc, b) => acc + b.reviewCount);
-    return totalReviews == 0 ? 0 : weighted / totalReviews;
-  }
-
   int get _totalReviews =>
       _businesses.fold(0, (acc, b) => acc + b.reviewCount);
+
+  int get _totalOpenRequests =>
+      _requestCounts.values.fold(0, (acc, c) => acc + c);
 
   // -------------------------------------------------------------------------
   // Build
@@ -133,6 +145,18 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         child: Row(
           children: [
+            IconButton(
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(AppRoutes.profile);
+                }
+              },
+              tooltip: 'Back',
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            const SizedBox(width: 4),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,10 +242,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: _SummaryCard(
-                icon: Icons.star_rounded,
-                label: 'Avg Rating',
-                value: _totalAvgRating.toStringAsFixed(1),
-                color: const Color(0xFFFBBF24),
+                icon: Icons.campaign_rounded,
+                label: 'Requests',
+                value: '$_totalOpenRequests',
+                color: _totalOpenRequests > 0 ? Colors.red : colorScheme.primary,
               ),
             ),
           ],
@@ -249,10 +273,15 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       itemCount: _businesses.length,
       separatorBuilder: (_, __) =>
           const Divider(height: 1, indent: 20, endIndent: 20),
-      itemBuilder: (context, i) => _BusinessOwnerTile(
-        business: _businesses[i],
-        onTap: () => _openBusiness(_businesses[i]),
-      ),
+      itemBuilder: (context, i) {
+        final business = _businesses[i];
+        final openRequests = _requestCounts[business.id] ?? 0;
+        return _BusinessOwnerTile(
+          business: business,
+          openRequestCount: openRequests,
+          onTap: () => _openBusiness(business),
+        );
+      },
     );
   }
 
@@ -349,10 +378,12 @@ class _SummaryCard extends StatelessWidget {
 class _BusinessOwnerTile extends StatelessWidget {
   const _BusinessOwnerTile({
     required this.business,
+    required this.openRequestCount,
     required this.onTap,
   });
 
   final Business business;
+  final int openRequestCount;
   final VoidCallback onTap;
 
   @override
@@ -365,22 +396,73 @@ class _BusinessOwnerTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
-            // Thumbnail
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 62,
-                height: 62,
-                color: colorScheme.surfaceContainerHighest,
-                child: business.primaryImage != null
-                    ? Image.network(business.primaryImage!, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
-                          Icons.store_outlined,
-                          color: colorScheme.onSurface.withAlpha(64),
-                        ))
-                    : Icon(Icons.store_outlined,
-                        color: colorScheme.onSurface.withAlpha(64)),
-              ),
+            // Thumbnail with badge overlay
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: 62,
+                    height: 62,
+                    color: colorScheme.surfaceContainerHighest,
+                    child: business.primaryImage != null
+                        ? Image.network(
+                            business.primaryImage!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.store_outlined,
+                              color: colorScheme.onSurface.withAlpha(64),
+                            ),
+                          )
+                        : Icon(
+                            Icons.store_outlined,
+                            color: colorScheme.onSurface.withAlpha(64),
+                          ),
+                  ),
+                ),
+                // Red badge
+                if (openRequestCount > 0)
+                  Positioned(
+                    top: -6,
+                    right: -6,
+                    child: Container(
+                      padding: openRequestCount > 9
+                          ? const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2)
+                          : const EdgeInsets.all(0),
+                      constraints: const BoxConstraints(
+                        minWidth: 20,
+                        minHeight: 20,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: openRequestCount > 9
+                            ? BoxShape.rectangle
+                            : BoxShape.circle,
+                        borderRadius: openRequestCount > 9
+                            ? BorderRadius.circular(10)
+                            : null,
+                        border: Border.all(
+                          color: colorScheme.surface,
+                          width: 2,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        openRequestCount > 99
+                            ? '99+'
+                            : '$openRequestCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 14),
 
@@ -413,8 +495,8 @@ class _BusinessOwnerTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.star_rounded,
-                          size: 13, color: const Color(0xFFFBBF24)),
+                      const Icon(Icons.star_rounded,
+                          size: 13, color: Color(0xFFFBBF24)),
                       const SizedBox(width: 3),
                       Text(
                         business.avgRating.toStringAsFixed(1),
@@ -431,14 +513,41 @@ class _BusinessOwnerTile extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  if (business.location != null)
-                    Text(
-                      business.location!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSurface.withAlpha(115),
-                      ),
-                    ),
+                  Row(
+                    children: [
+                      if (business.location != null)
+                        Expanded(
+                          child: Text(
+                            business.location!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurface.withAlpha(115),
+                            ),
+                          ),
+                        ),
+                      if (openRequestCount > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withAlpha(26),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: Colors.red.withAlpha(77)),
+                          ),
+                          child: Text(
+                            '$openRequestCount open request${openRequestCount == 1 ? '' : 's'}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),

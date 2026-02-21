@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/supabase_client.dart';
 import '../../repositories/business_request_repository.dart';
 
 class WriteRequestScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class _WriteRequestScreenState extends State<WriteRequestScreen> {
 
   DateTime? _neededBy;
   bool _submitting = false;
+  bool get _isGuest => SupabaseClientProvider.currentUser?.isAnonymous ?? false;
 
   @override
   void dispose() {
@@ -39,6 +41,16 @@ class _WriteRequestScreenState extends State<WriteRequestScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isGuest) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Guests cannot submit requests.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final text = _requestController.text.trim();
     if (text.length < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -141,7 +153,7 @@ class _WriteRequestScreenState extends State<WriteRequestScreen> {
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
-            onPressed: _submitting ? null : _submit,
+            onPressed: (_submitting || _isGuest) ? null : _submit,
             icon: _submitting
                 ? const SizedBox(
                     width: 16,
@@ -149,7 +161,7 @@ class _WriteRequestScreenState extends State<WriteRequestScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.campaign_outlined),
-            label: const Text('Post request'),
+            label: Text(_isGuest ? 'Unavailable for guests' : 'Post request'),
           ),
         ],
       ),

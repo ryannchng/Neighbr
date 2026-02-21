@@ -46,6 +46,8 @@ class UserReview {
 }
 
 class ReviewRepository {
+  // ── Fetch user's own reviews ───────────────────────────────────────────────
+
   Future<List<UserReview>> getMyReviews({
     int limit = AppConstants.pageSize,
     int offset = 0,
@@ -62,6 +64,61 @@ class ReviewRepository {
 
     return (data as List).map((e) => UserReview.fromJson(e)).toList();
   }
+
+  // ── Check if user already reviewed a business ─────────────────────────────
+
+  Future<bool> hasReviewed(String businessId) async {
+    final userId = SupabaseClientProvider.currentUser?.id;
+    if (userId == null) return false;
+
+    final data = await SupabaseClientProvider.client
+        .from('reviews')
+        .select('id')
+        .eq('business_id', businessId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    return data != null;
+  }
+
+  // ── Submit a new review ───────────────────────────────────────────────────
+
+  Future<void> submitReview({
+    required String businessId,
+    required int rating,
+    String? content,
+    bool isVerifiedVisit = false,
+  }) async {
+    final user = SupabaseClientProvider.currentUser;
+    if (user?.isAnonymous ?? false) {
+      throw Exception('Guest users cannot submit reviews.');
+    }
+
+    final userId = user?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    // Check for duplicate before inserting
+    final existing = await SupabaseClientProvider.client
+        .from('reviews')
+        .select('id')
+        .eq('business_id', businessId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (existing != null) {
+      throw Exception('You have already reviewed this business.');
+    }
+
+    await SupabaseClientProvider.client.from('reviews').insert({
+      'business_id': businessId,
+      'user_id': userId,
+      'rating': rating,
+      if (content != null && content.isNotEmpty) 'content': content,
+      'is_verified_visit': isVerifiedVisit,
+    });
+  }
+
+  // ── Delete a review ───────────────────────────────────────────────────────
 
   Future<void> deleteReview(String reviewId) async {
     await SupabaseClientProvider.client
