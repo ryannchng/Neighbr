@@ -117,27 +117,6 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: const Text('Write a Review'),
-        actions: [
-          if (_submitting)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            TextButton(
-              onPressed: _isGuest ? null : _submit,
-              child: const Text(
-                'Submit',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
