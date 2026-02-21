@@ -2,6 +2,7 @@ import '../core/constants.dart';
 import '../core/supabase_client.dart';
 import '../models/business_model.dart';
 import '../models/category_model.dart';
+import '../screens/browse/browse_screen.dart' show SortOption;
 
 // Supabase embedded-select fragment reused across every business query.
 const _kBusinessSelect =
@@ -18,6 +19,39 @@ class BusinessRepository {
         .select()
         .order('name');
     return (data as List).map((e) => Category.fromJson(e)).toList();
+  }
+
+  // -------------------------------------------------------------------------
+  // All businesses — with sort + pagination (used by Browse screen)
+  // -------------------------------------------------------------------------
+
+  Future<List<Business>> getAll({
+    SortOption sort = SortOption.topRated,
+    int limit = AppConstants.pageSize,
+    int offset = 0,
+  }) async {
+    final base = SupabaseClientProvider.client
+        .from('businesses')
+        .select(_kBusinessSelect);
+
+    final data = await switch (sort) {
+      SortOption.topRated => base
+          .order('avg_rating', ascending: false)
+          .order('review_count', ascending: false)
+          .range(offset, offset + limit - 1),
+      SortOption.newest => base
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1),
+      SortOption.mostReviewed => base
+          .order('review_count', ascending: false)
+          .order('avg_rating', ascending: false)
+          .range(offset, offset + limit - 1),
+      SortOption.nameAZ => base
+          .order('name', ascending: true)
+          .range(offset, offset + limit - 1),
+    };
+
+    return _mapList(data);
   }
 
   // -------------------------------------------------------------------------
@@ -50,20 +84,37 @@ class BusinessRepository {
   }
 
   // -------------------------------------------------------------------------
-  // By category
+  // By category — with sort + pagination
   // -------------------------------------------------------------------------
 
   Future<List<Business>> getByCategory(
     String categoryId, {
+    SortOption sort = SortOption.topRated,
     int limit = AppConstants.pageSize,
     int offset = 0,
   }) async {
-    final data = await SupabaseClientProvider.client
+    final base = SupabaseClientProvider.client
         .from('businesses')
         .select(_kBusinessSelect)
-        .eq('category_id', categoryId)
-        .order('avg_rating', ascending: false)
-        .range(offset, offset + limit - 1);
+        .eq('category_id', categoryId);
+
+    final data = await switch (sort) {
+      SortOption.topRated => base
+          .order('avg_rating', ascending: false)
+          .order('review_count', ascending: false)
+          .range(offset, offset + limit - 1),
+      SortOption.newest => base
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1),
+      SortOption.mostReviewed => base
+          .order('review_count', ascending: false)
+          .order('avg_rating', ascending: false)
+          .range(offset, offset + limit - 1),
+      SortOption.nameAZ => base
+          .order('name', ascending: true)
+          .range(offset, offset + limit - 1),
+    };
+
     return _mapList(data);
   }
 

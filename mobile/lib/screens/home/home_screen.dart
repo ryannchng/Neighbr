@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/router.dart';
 import '../../core/supabase_client.dart';
 import '../../models/business_model.dart';
-import '../../models/category_model.dart';
 import '../../repositories/business_repository.dart';
 
 // ============================================================================
@@ -14,12 +13,10 @@ import '../../repositories/business_repository.dart';
 // ============================================================================
 class _HomeData {
   const _HomeData({
-    required this.categories,
     required this.featured,
     required this.newest,
   });
 
-  final List<Category> categories;
   final List<Business> featured;
   final List<Business> newest;
 }
@@ -41,11 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
   _HomeData? _data;
   bool _loading = true;
   String? _error;
-
-  // Active category filter — null means "All"
-  String? _activeCategoryId;
-  List<Business> _categoryResults = [];
-  bool _categoryLoading = false;
 
   // Debounce timer for search
   Timer? _searchDebounce;
@@ -81,16 +73,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     try {
       final results = await Future.wait([
-        _repo.getCategories(),
         _repo.getFeatured(),
         _repo.getNewest(),
       ]);
       if (!mounted) return;
       setState(() {
         _data = _HomeData(
-          categories: results[0] as List<Category>,
-          featured: results[1] as List<Business>,
-          newest: results[2] as List<Business>,
+          featured: results[0],
+          newest: results[1],
         );
         _loading = false;
       });
@@ -100,30 +90,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _error = 'Could not load businesses. Pull down to retry.';
         _loading = false;
       });
-    }
-  }
-
-  Future<void> _selectCategory(String? categoryId) async {
-    if (_activeCategoryId == categoryId) {
-      setState(() => _activeCategoryId = null);
-      return;
-    }
-    setState(() {
-      _activeCategoryId = categoryId;
-      _categoryLoading = true;
-    });
-    try {
-      final results = categoryId == null
-          ? <Business>[]
-          : await _repo.getByCategory(categoryId);
-      if (!mounted) return;
-      setState(() {
-        _categoryResults = results;
-        _categoryLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _categoryLoading = false);
     }
   }
 
@@ -152,10 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _openSearch() => setState(() {
-        _showSearch = true;
-        _activeCategoryId = null;
-      });
+  void _openSearch() => setState(() => _showSearch = true);
 
   void _closeSearch() {
     _searchDebounce?.cancel();
@@ -198,26 +161,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ] else if (_error != null) ...[
                 SliverFillRemaining(child: _ErrorView(message: _error!, onRetry: _load)),
               ] else ...[
-                _buildCategoryChips(),
-                if (_activeCategoryId != null) ...[
-                  _buildSectionHeader('Results'),
-                  _categoryLoading
-                      ? const SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 40),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                        )
-                      : _buildVerticalBusinessList(_categoryResults),
-                ] else ...[
-                  if (_data!.featured.isNotEmpty) ...[
-                    _buildSectionHeader('✦ Featured'),
-                    _buildFeaturedCarousel(),
-                  ],
-                  if (_data!.newest.isNotEmpty) ...[
-                    _buildSectionHeader('Recently Added'),
-                    _buildVerticalBusinessList(_data!.newest),
-                  ],
+                if (_data!.featured.isNotEmpty) ...[
+                  _buildSectionHeader('Featured'),
+                  _buildFeaturedCarousel(),
+                ],
+                if (_data!.newest.isNotEmpty) ...[
+                  _buildSectionHeader('Recently Added'),
+                  _buildVerticalBusinessList(_data!.newest),
                 ],
               ],
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -307,33 +257,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Good evening 👋';
   }
 
-  // -------------------------------------------------------------------------
-  // Category chips
-  // -------------------------------------------------------------------------
-
-  Widget _buildCategoryChips() {
-    final categories = _data?.categories ?? [];
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: 52,
-        child: ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          scrollDirection: Axis.horizontal,
-          itemCount: categories.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, i) {
-            final cat = categories[i];
-            final selected = _activeCategoryId == cat.id;
-            return _CategoryChip(
-              category: cat,
-              selected: selected,
-              onTap: () => _selectCategory(cat.id),
-            );
-          },
-        ),
-      ),
-    );
-  }
 
   // -------------------------------------------------------------------------
   // Section header
@@ -586,57 +509,6 @@ class _SearchFieldState extends State<_SearchField> {
   }
 }
 
-// ---- Category chip ---------------------------------------------------------
-
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({
-    required this.category,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final Category category;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      child: FilterChip(
-        selected: selected,
-        showCheckmark: false,
-        avatar: Text(
-          category.icon,
-          style: const TextStyle(fontSize: 15),
-        ),
-        label: Text(
-          category.name,
-          style: TextStyle(
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            fontSize: 13,
-          ),
-        ),
-        onSelected: (_) => onTap(),
-        backgroundColor: colorScheme.surfaceContainerHighest.withAlpha(128),
-        selectedColor: colorScheme.primaryContainer,
-        labelStyle: TextStyle(
-          color: selected
-              ? colorScheme.onPrimaryContainer
-              : colorScheme.onSurface,
-        ),
-        side: BorderSide(
-          color: selected
-              ? colorScheme.primary.withAlpha(102)
-              : colorScheme.outline.withAlpha(51),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      ),
-    );
-  }
-}
 
 // ---- Featured card (horizontal carousel) -----------------------------------
 

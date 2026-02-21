@@ -24,6 +24,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String get _email =>
       SupabaseClientProvider.currentUser?.email ?? '';
 
+  bool get _isGuest =>
+      SupabaseClientProvider.currentUser?.isAnonymous ?? false;
+
   String get _username {
     final dbUsername = _profileUsername?.trim();
     if (dbUsername != null && dbUsername.isNotEmpty) return dbUsername;
@@ -294,9 +297,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (!_roleLoading) ...[
+                        if (_isGuest || !_roleLoading) ...[
                           const SizedBox(height: 6),
-                          _RoleBadge(isOwner: _isOwner),
+                          _RoleBadge(
+                            isOwner: _isOwner,
+                            isGuest: _isGuest,
+                          ),
                         ],
                       ],
                     ),
@@ -382,16 +388,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // ============================================================================
 
 class _RoleBadge extends StatelessWidget {
-  const _RoleBadge({required this.isOwner});
+  const _RoleBadge({required this.isOwner, required this.isGuest});
 
   final bool isOwner;
+  final bool isGuest;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final color = isOwner ? colorScheme.primary : colorScheme.secondary;
-    final label = isOwner ? 'Owner' : 'Member';
-    final icon = isOwner ? Icons.store_rounded : Icons.person_rounded;
+    final color = isGuest
+        ? colorScheme.tertiary
+        : (isOwner ? colorScheme.primary : colorScheme.secondary);
+    final label = isGuest ? 'Guest' : (isOwner ? 'Owner' : 'Member');
+    final icon = isGuest
+        ? Icons.person_outline_rounded
+        : (isOwner ? Icons.store_rounded : Icons.person_rounded);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

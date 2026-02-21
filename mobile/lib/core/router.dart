@@ -12,6 +12,7 @@ import 'package:mobile/screens/owner/owner_business_detail_screen.dart';
 import 'package:mobile/screens/owner/owner_business_form_screen.dart';
 import 'package:mobile/screens/profile/profile_screen.dart';
 import 'package:mobile/screens/onboarding/onboarding_screen.dart';
+import 'package:mobile/screens/browse/browse_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_client.dart';
 
@@ -117,8 +118,7 @@ class AppRouter {
           ),
           GoRoute(
             path: AppRoutes.businessList,
-            builder: (context, state) =>
-                const _PlaceholderScreen(label: 'Businesses'),
+            builder: (context, state) => const BrowseScreen(),
             routes: [
               GoRoute(
                 path: ':id',
@@ -129,8 +129,7 @@ class AppRouter {
                   GoRoute(
                     path: 'review',
                     builder: (context, state) => _PlaceholderScreen(
-                      label:
-                          'Write Review for ${state.pathParameters['id']}',
+                      label: 'Write Review for ${state.pathParameters['id']}',
                     ),
                   ),
                 ],
@@ -227,9 +226,9 @@ class _AppShell extends StatelessWidget {
 
   static const _tabs = [
     (
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home,
-      label: 'Home',
+      icon: Icons.explore_outlined,
+      activeIcon: Icons.explore,
+      label: 'Explore',
       route: AppRoutes.home,
     ),
     (
