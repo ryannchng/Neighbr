@@ -2,8 +2,7 @@
   <br/>
   <a href="https://opensource.org/license/agpl-v3"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg?color=3F51B5&style=for-the-badge&label=License&logoColor=000000&labelColor=ececec" alt="License: AGPLv3"></a>
 	<a href="https://dart.dev/"><img src="https://img.shields.io/github/languages/top/ryannchng/Neighbr?style=for-the-badge" alt="Language: Dart"></a>
-	<a href="https://github.com/ryannchng/Neighbr/actions"><img src="https://img.shields.io/github/actions/workflow/status/ryannchng/Neighbr/main.yml?style=for-the-badge
-	" alt="Actions"></a>
+	<a href="https://github.com/ryannchng/Neighbr/actions"><img src="https://img.shields.io/github/actions/workflow/status/ryannchng/Neighbr/main.yml?style=for-the-badge" alt="Actions"></a>
 	<br/>
 	<br/>
 </p>
