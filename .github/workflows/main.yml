@@ -12,7 +12,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: mobile
+        working-directory: ./mobile
 
     steps:
       - name: Clone repository
