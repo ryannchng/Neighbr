@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/app.dart';
-import 'package:mobile/core/constants.dart';
-import 'package:mobile/core/secure_session_storage.dart';
+import 'package:neighbr/app.dart';
+import 'package:neighbr/core/constants.dart';
+import 'package:neighbr/core/secure_session_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {

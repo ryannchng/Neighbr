@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile/core/router.dart';
-import 'package:mobile/core/supabase_client.dart';
+import 'package:neighbr/core/router.dart';
+import 'package:neighbr/core/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
