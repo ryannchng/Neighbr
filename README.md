@@ -89,6 +89,3 @@
 - Material 3 design with full light/dark theme support
 - Supabase backend with Row Level Security
 - Repository pattern separating data access from UI
-
-<br/>
-<br/>
