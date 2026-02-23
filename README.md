@@ -89,3 +89,7 @@
 - Material 3 design with full light/dark theme support
 - Supabase backend with Row Level Security
 - Repository pattern separating data access from UI
+
+# Database Schema
+
+<img align="center" src="design/database.png" title="Neighbr Database">
