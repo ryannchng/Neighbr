@@ -1,0 +1,49 @@
+name: Build Android App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build android app
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+        
+      - name: Setup Flutter SDK
+        id: flutter-action
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: mobile/pubspec.yaml
+          cache: true
+
+      - run: flutter --version
+
+      - name: Get Packages
+        run: flutter pub get
+
+      - name: Build Android App Bundle
+        run: flutter build apk --release
+
+      - name: Publish Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: mobile/build/app/outputs/flutter-apk/*.apk
+          compression-level: 0
