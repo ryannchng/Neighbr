@@ -105,6 +105,7 @@ class _WriteMarketplaceRequestScreenState
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
+      // _showSnack('Error: $e'); // temporary — remove before production
       _showSnack('Could not post request. Please try again.');
     }
   }
