@@ -25,8 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   UserProfile? _profile;
 
-  String get _email =>
-      SupabaseClientProvider.currentUser?.email ?? '';
+  String get _email => SupabaseClientProvider.currentUser?.email ?? '';
 
   String get _displayName {
     final name = _profile?.fullName?.trim();
@@ -38,14 +37,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String get _initials {
     final parts = _displayName.split(RegExp(r'[\s._-]+'));
-    if (parts.length >= 2 &&
-        parts[0].isNotEmpty &&
-        parts[1].isNotEmpty) {
+    if (parts.length >= 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return _displayName.isNotEmpty
-        ? _displayName[0].toUpperCase()
-        : '?';
+    return _displayName.isNotEmpty ? _displayName[0].toUpperCase() : '?';
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -84,8 +79,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _isOwner = false;
           _profile = UserProfile(
             id: user.id,
-            username: meta['username'] as String? ??
-                (user.email?.split('@').first),
+            username:
+                meta['username'] as String? ?? (user.email?.split('@').first),
           );
           _loading = false;
         });
@@ -96,7 +91,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _profile = UserProfile(
           id: SupabaseClientProvider.currentUser!.id,
-          username: meta['username'] as String? ??
+          username:
+              meta['username'] as String? ??
               (_email.isNotEmpty ? _email.split('@').first : null),
         );
         _loading = false;
@@ -110,10 +106,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final profile = _profile;
     if (profile == null) return;
 
-    await context.push<bool>(
-      AppRoutes.editProfile,
-      extra: profile,
-    );
+    await context.push<bool>(AppRoutes.editProfile, extra: profile);
 
     // Always reload so the namecard reflects whatever was saved,
     // regardless of whether EditProfileScreen returned true/false/null.
@@ -129,8 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() => _signingOut = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Sign out failed. Please try again.')),
+          const SnackBar(content: Text('Sign out failed. Please try again.')),
         );
       }
     }
@@ -206,8 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-                Text('Could not delete account. Please contact support.'),
+            content: Text('Could not delete account. Please contact support.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -259,6 +250,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: () => context.push(AppRoutes.myRequests),
                   ),
                   _SettingsTile(
+                    icon: Icons.campaign_rounded,
+                    iconColor: const Color(0xFFF59E0B),
+                    title: 'Marketplace Requests',
+                    subtitle: 'Requests you\'ve posted to local businesses',
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => context.push(AppRoutes.myMarketplaceReqs),
+                  ),
+                  _SettingsTile(
                     icon: Icons.bookmark_outline_rounded,
                     iconColor: const Color(0xFF10B981),
                     title: 'Saved Places',
@@ -295,7 +294,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                            color: colorScheme.outline.withAlpha(38)),
+                          color: colorScheme.outline.withAlpha(38),
+                        ),
                       ),
                       child: Center(
                         child: SizedBox(
@@ -403,8 +403,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                      color: colorScheme.outline.withAlpha(38)),
+                  border: Border.all(color: colorScheme.outline.withAlpha(38)),
                 ),
                 child: Row(
                   children: [
@@ -480,10 +479,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final label = _interestLabel(id);
                   return Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
-                      color:
-                          colorScheme.secondaryContainer.withAlpha(128),
+                      color: colorScheme.secondaryContainer.withAlpha(128),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -529,8 +529,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: colorScheme.outline.withAlpha(38)),
+                border: Border.all(color: colorScheme.outline.withAlpha(38)),
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(

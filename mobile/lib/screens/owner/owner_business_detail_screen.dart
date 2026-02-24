@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:neighbr/repositories/marketplace_request_repository.dart';
+import 'package:neighbr/screens/marketplace/marketplace_recommendations_tab.dart';
 
 import '../../core/router.dart';
 import '../../models/business_model.dart';
 import '../../repositories/business_request_repository.dart';
 import '../../repositories/owner_repository.dart';
-
 
 class OwnerBusinessDetailScreen extends StatefulWidget {
   const OwnerBusinessDetailScreen({super.key, required this.businessId});
@@ -18,18 +19,23 @@ class OwnerBusinessDetailScreen extends StatefulWidget {
       _OwnerBusinessDetailScreenState();
 }
 
-class _OwnerBusinessDetailScreenState
-    extends State<OwnerBusinessDetailScreen>
+class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
     with SingleTickerProviderStateMixin {
   final _repo = OwnerRepository();
   final _requestRepo = BusinessRequestRepository();
+  final _marketplaceRepo = MarketplaceRequestRepository();
+
 
   late TabController _tabController;
 
   Business? _business;
   List<ReviewSummary> _reviews = [];
-  RatingDistribution _distribution = const RatingDistribution(counts: [0, 0, 0, 0, 0]);
+  RatingDistribution _distribution = const RatingDistribution(
+    counts: [0, 0, 0, 0, 0],
+  );
   List<BusinessRequest> _requests = [];
+
+  int _pendingMarketplaceCount = 0;
 
   bool _loading = true;
   String? _error;
@@ -39,7 +45,7 @@ class _OwnerBusinessDetailScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _load();
   }
 
@@ -60,6 +66,7 @@ class _OwnerBusinessDetailScreenState
         _repo.getReviews(widget.businessId),
         _repo.getRatingDistribution(widget.businessId),
         _requestRepo.getRequestsForBusiness(widget.businessId),
+        _marketplaceRepo.getPendingRecommendationCount(widget.businessId),
       ]);
 
       if (!mounted) return;
@@ -68,6 +75,7 @@ class _OwnerBusinessDetailScreenState
         _reviews = results[1] as List<ReviewSummary>;
         _distribution = results[2] as RatingDistribution;
         _requests = results[3] as List<BusinessRequest>;
+        _pendingMarketplaceCount = results[4] as int;
         _loading = false;
       });
     } catch (e) {
@@ -86,9 +94,9 @@ class _OwnerBusinessDetailScreenState
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not claim request: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not claim request: $e')));
       }
     } finally {
       if (mounted) setState(() => _processingIds.remove(requestId));
@@ -102,9 +110,9 @@ class _OwnerBusinessDetailScreenState
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not mark as done: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not mark as done: $e')));
       }
     } finally {
       if (mounted) setState(() => _processingIds.remove(requestId));
@@ -130,7 +138,10 @@ class _OwnerBusinessDetailScreenState
               children: [
                 Text(_error!, textAlign: TextAlign.center),
                 const SizedBox(height: 12),
-                FilledButton.tonal(onPressed: _load, child: const Text('Try again')),
+                FilledButton.tonal(
+                  onPressed: _load,
+                  child: const Text('Try again'),
+                ),
               ],
             ),
           ),
@@ -152,7 +163,11 @@ class _OwnerBusinessDetailScreenState
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: Text(business.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(
+          business.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined),
@@ -171,6 +186,11 @@ class _OwnerBusinessDetailScreenState
               child: _RequestsTabLabel(
                 openCount: openCount,
                 claimedCount: claimedCount,
+              ),
+            ),
+            Tab(
+              child: MarketplaceTabLabel(
+                pendingCount: _pendingMarketplaceCount,
               ),
             ),
             const Tab(text: 'Details'),
@@ -192,6 +212,7 @@ class _OwnerBusinessDetailScreenState
             onClaim: _claimRequest,
             onMarkDone: _markDone,
           ),
+          MarketplaceRecommendationsTab(businessId: widget.businessId),
           _DetailsTab(business: business),
         ],
       ),
@@ -294,36 +315,54 @@ class _RequestsTab extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
         if (open.isNotEmpty) ...[
-          _SectionHeader(label: 'Open', count: open.length, color: Colors.orange),
+          _SectionHeader(
+            label: 'Open',
+            count: open.length,
+            color: Colors.orange,
+          ),
           const SizedBox(height: 8),
-          ...open.map((r) => _RequestCard(
-                request: r,
-                isProcessing: processingIds.contains(r.id),
-                onClaim: () => onClaim(r.id),
-                onMarkDone: null,
-              )),
+          ...open.map(
+            (r) => _RequestCard(
+              request: r,
+              isProcessing: processingIds.contains(r.id),
+              onClaim: () => onClaim(r.id),
+              onMarkDone: null,
+            ),
+          ),
           const SizedBox(height: 20),
         ],
         if (inProgress.isNotEmpty) ...[
-          _SectionHeader(label: 'In Progress', count: inProgress.length, color: Colors.blue),
+          _SectionHeader(
+            label: 'In Progress',
+            count: inProgress.length,
+            color: Colors.blue,
+          ),
           const SizedBox(height: 8),
-          ...inProgress.map((r) => _RequestCard(
-                request: r,
-                isProcessing: processingIds.contains(r.id),
-                onClaim: null,
-                onMarkDone: () => onMarkDone(r.id),
-              )),
+          ...inProgress.map(
+            (r) => _RequestCard(
+              request: r,
+              isProcessing: processingIds.contains(r.id),
+              onClaim: null,
+              onMarkDone: () => onMarkDone(r.id),
+            ),
+          ),
           const SizedBox(height: 20),
         ],
         if (done.isNotEmpty) ...[
-          _SectionHeader(label: 'Done', count: done.length, color: Colors.green),
+          _SectionHeader(
+            label: 'Done',
+            count: done.length,
+            color: Colors.green,
+          ),
           const SizedBox(height: 8),
-          ...done.map((r) => _RequestCard(
-                request: r,
-                isProcessing: false,
-                onClaim: null,
-                onMarkDone: null,
-              )),
+          ...done.map(
+            (r) => _RequestCard(
+              request: r,
+              isProcessing: false,
+              onClaim: null,
+              onMarkDone: null,
+            ),
+          ),
         ],
       ],
     );
@@ -351,7 +390,10 @@ class _SectionHeader extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 8),
-        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(width: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -361,7 +403,11 @@ class _SectionHeader extends StatelessWidget {
           ),
           child: Text(
             '$count',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
           ),
         ),
       ],
@@ -385,7 +431,9 @@ class _RequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final dateStr = DateFormat('MMM d, yyyy').format(request.createdAt.toLocal());
+    final dateStr = DateFormat(
+      'MMM d, yyyy',
+    ).format(request.createdAt.toLocal());
 
     final (chipColor, chipLabel, chipIcon) = switch (request.status) {
       'open' => (Colors.orange, 'Open', Icons.radio_button_unchecked),
@@ -407,15 +455,21 @@ class _RequestCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.person_outline_rounded,
-                  size: 15, color: colorScheme.onSurface.withAlpha(128)),
+              Icon(
+                Icons.person_outline_rounded,
+                size: 15,
+                color: colorScheme.onSurface.withAlpha(128),
+              ),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
                   request.requesterUsername ?? 'Customer',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -434,7 +488,10 @@ class _RequestCard extends StatelessWidget {
                     Text(
                       chipLabel,
                       style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w700, color: chipColor),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: chipColor,
+                      ),
                     ),
                   ],
                 ),
@@ -445,7 +502,10 @@ class _RequestCard extends StatelessWidget {
           Text(
             request.requestText,
             style: TextStyle(
-                fontSize: 14, height: 1.4, color: colorScheme.onSurface.withAlpha(210)),
+              fontSize: 14,
+              height: 1.4,
+              color: colorScheme.onSurface.withAlpha(210),
+            ),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -461,7 +521,8 @@ class _RequestCard extends StatelessWidget {
               if (request.neededBy != null)
                 _MetaChip(
                   icon: Icons.event_outlined,
-                  label: 'By ${DateFormat('MMM d').format(request.neededBy!.toLocal())}',
+                  label:
+                      'By ${DateFormat('MMM d').format(request.neededBy!.toLocal())}',
                 ),
             ],
           ),
@@ -526,7 +587,10 @@ class _MetaChip extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withAlpha(153)),
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurface.withAlpha(153),
+              ),
             ),
           ),
         ],
@@ -584,21 +648,35 @@ class _AnalyticsTab extends StatelessWidget {
         Text(
           'Rating Breakdown',
           style: TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w700, color: colorScheme.onSurface),
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 12),
         ...List.generate(5, (i) {
           final star = 5 - i;
           final count = distribution.counts[star - 1];
-          final pct = distribution.total == 0 ? 0.0 : count / distribution.total;
+          final pct = distribution.total == 0
+              ? 0.0
+              : count / distribution.total;
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               children: [
-                Text('$star',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                  '$star',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(width: 4),
-                const Icon(Icons.star_rounded, size: 13, color: Color(0xFFFBBF24)),
+                const Icon(
+                  Icons.star_rounded,
+                  size: 13,
+                  color: Color(0xFFFBBF24),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: ClipRRect(
@@ -607,8 +685,9 @@ class _AnalyticsTab extends StatelessWidget {
                       value: pct,
                       minHeight: 8,
                       backgroundColor: colorScheme.surfaceContainerHighest,
-                      valueColor:
-                          const AlwaysStoppedAnimation(Color(0xFFFBBF24)),
+                      valueColor: const AlwaysStoppedAnimation(
+                        Color(0xFFFBBF24),
+                      ),
                     ),
                   ),
                 ),
@@ -618,7 +697,9 @@ class _AnalyticsTab extends StatelessWidget {
                   child: Text(
                     '$count',
                     style: TextStyle(
-                        fontSize: 12, color: colorScheme.onSurface.withAlpha(140)),
+                      fontSize: 12,
+                      color: colorScheme.onSurface.withAlpha(140),
+                    ),
                     textAlign: TextAlign.end,
                   ),
                 ),
@@ -673,9 +754,17 @@ class _StatCard extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-          Text(label,
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withAlpha(128))),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withAlpha(128),
+            ),
+          ),
         ],
       ),
     );
@@ -709,12 +798,18 @@ class _InfoTile extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(width: 10),
-          Text(label,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
           const Spacer(),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 13, color: colorScheme.onSurface.withAlpha(160))),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              color: colorScheme.onSurface.withAlpha(160),
+            ),
+          ),
         ],
       ),
     );
@@ -752,7 +847,10 @@ class _ReviewsTab extends StatelessWidget {
                 children: [
                   Text(
                     review.authorUsername,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
                   const Spacer(),
                   Row(
@@ -775,7 +873,9 @@ class _ReviewsTab extends StatelessWidget {
                   review.content!,
                   style: TextStyle(
                     fontSize: 13.5,
-                    color: Theme.of(context).colorScheme.onSurface.withAlpha(190),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withAlpha(190),
                   ),
                 ),
               ],
@@ -808,22 +908,35 @@ class _DetailsTab extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       children: [
         if (business.description.trim().isNotEmpty) ...[
-          const Text('Description',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+          const Text(
+            'Description',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 8),
-          Text(business.description,
-              style: TextStyle(
-                  fontSize: 14, height: 1.45, color: colorScheme.onSurface.withAlpha(200))),
+          Text(
+            business.description,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: colorScheme.onSurface.withAlpha(200),
+            ),
+          ),
           const SizedBox(height: 20),
         ],
         if (business.location != null)
-          _DetailRow(icon: Icons.location_on_outlined, value: business.location!),
+          _DetailRow(
+            icon: Icons.location_on_outlined,
+            value: business.location!,
+          ),
         if (business.phone != null)
           _DetailRow(icon: Icons.phone_outlined, value: business.phone!),
         if (business.website != null)
           _DetailRow(icon: Icons.language_outlined, value: business.website!),
         if (business.category != null)
-          _DetailRow(icon: Icons.category_rounded, value: business.category!.name),
+          _DetailRow(
+            icon: Icons.category_rounded,
+            value: business.category!.name,
+          ),
       ],
     );
   }
@@ -846,9 +959,13 @@ class _DetailRow extends StatelessWidget {
           Icon(icon, size: 18, color: colorScheme.primary),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(value,
-                style: TextStyle(
-                    fontSize: 14, color: colorScheme.onSurface.withAlpha(200))),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                color: colorScheme.onSurface.withAlpha(200),
+              ),
+            ),
           ),
         ],
       ),

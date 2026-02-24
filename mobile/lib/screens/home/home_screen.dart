@@ -11,10 +11,7 @@ import '../../repositories/business_repository.dart';
 // Data bundle loaded in one shot
 // ============================================================================
 class _HomeData {
-  const _HomeData({
-    required this.featured,
-    required this.newest,
-  });
+  const _HomeData({required this.featured, required this.newest});
 
   final List<Business> featured;
   final List<Business> newest;
@@ -68,10 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ]);
       if (!mounted) return;
       setState(() {
-        _data = _HomeData(
-          featured: results[0],
-          newest: results[1],
-        );
+        _data = _HomeData(featured: results[0], newest: results[1]);
         _loading = false;
       });
     } catch (e) {
@@ -110,12 +104,84 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Center(child: CircularProgressIndicator()),
                 ),
               ] else if (_error != null) ...[
-                SliverFillRemaining(child: _ErrorView(message: _error!, onRetry: _load)),
+                SliverFillRemaining(
+                  child: _ErrorView(message: _error!, onRetry: _load),
+                ),
               ] else ...[
                 if (_data!.featured.isNotEmpty) ...[
                   _buildSectionHeader('Featured'),
                   _buildFeaturedCarousel(),
                 ],
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                    child: GestureDetector(
+                      onTap: () => context.push(AppRoutes.marketplaceNew),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              colorScheme.primary,
+                              colorScheme.primary.withAlpha(204),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Can\'t find what you need?',
+                                    style: TextStyle(
+                                      color: colorScheme.onPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Post a request — local businesses will reach out.',
+                                    style: TextStyle(
+                                      color: colorScheme.onPrimary.withAlpha(
+                                        204,
+                                      ),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.onPrimary.withAlpha(38),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Post',
+                                style: TextStyle(
+                                  color: colorScheme.onPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 if (_data!.newest.isNotEmpty) ...[
                   _buildSectionHeader('Recently Added'),
                   _buildVerticalBusinessList(_data!.newest),
@@ -191,44 +257,43 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Good evening 👋';
   }
 
-
   // -------------------------------------------------------------------------
   // Section header
   // -------------------------------------------------------------------------
 
   Widget _buildSectionHeader(String title) => SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.2,
-            ),
-          ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.2,
         ),
-      );
+      ),
+    ),
+  );
 
   // -------------------------------------------------------------------------
   // Featured horizontal carousel
   // -------------------------------------------------------------------------
 
   Widget _buildFeaturedCarousel() => SliverToBoxAdapter(
-        child: SizedBox(
-          height: 220,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            scrollDirection: Axis.horizontal,
-            itemCount: _data!.featured.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 14),
-            itemBuilder: (context, i) => _FeaturedCard(
-              business: _data!.featured[i],
-              onTap: () => _goToBusiness(_data!.featured[i].id),
-            ),
-          ),
+    child: SizedBox(
+      height: 220,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemCount: _data!.featured.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (context, i) => _FeaturedCard(
+          business: _data!.featured[i],
+          onTap: () => _goToBusiness(_data!.featured[i].id),
         ),
-      );
+      ),
+    ),
+  );
 
   // -------------------------------------------------------------------------
   // Vertical list (newest / category results)
@@ -242,18 +307,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return SliverList.separated(
       itemCount: businesses.length,
-      separatorBuilder: (_, __) => const Divider(
-        height: 1,
-        indent: 20,
-        endIndent: 20,
-      ),
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, indent: 20, endIndent: 20),
       itemBuilder: (context, i) => _BusinessListTile(
         business: businesses[i],
         onTap: () => _goToBusiness(businesses[i].id),
       ),
     );
   }
-
 }
 
 // ============================================================================
@@ -346,11 +407,7 @@ class _FeaturedCard extends StatelessWidget {
                   ),
                   // Verified badge
                   if (business.isVerified)
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: _VerifiedBadge(),
-                    ),
+                    Positioned(top: 8, left: 8, child: _VerifiedBadge()),
                 ],
               ),
             ),
@@ -468,8 +525,11 @@ class _BusinessListTile extends StatelessWidget {
                       ),
                       if (business.isVerified) ...[
                         const SizedBox(width: 4),
-                        Icon(Icons.verified_rounded,
-                            size: 15, color: colorScheme.primary),
+                        Icon(
+                          Icons.verified_rounded,
+                          size: 15,
+                          color: colorScheme.primary,
+                        ),
                       ],
                     ],
                   ),
@@ -502,8 +562,8 @@ class _BusinessListTile extends StatelessWidget {
                         Text(
                           '  ·  ',
                           style: TextStyle(
-                              color:
-                                  colorScheme.onSurface.withAlpha(77)),
+                            color: colorScheme.onSurface.withAlpha(77),
+                          ),
                         ),
                         Text(
                           business.priceRangeLabel!,
@@ -539,8 +599,8 @@ class _BusinessListTile extends StatelessWidget {
                         Text(
                           '  ·  ',
                           style: TextStyle(
-                              color:
-                                  colorScheme.onSurface.withAlpha(77)),
+                            color: colorScheme.onSurface.withAlpha(77),
+                          ),
                         ),
                         Expanded(
                           child: Text(
@@ -560,8 +620,10 @@ class _BusinessListTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.chevron_right_rounded,
-                color: colorScheme.onSurface.withAlpha(77)),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: colorScheme.onSurface.withAlpha(77),
+            ),
           ],
         ),
       ),
@@ -594,15 +656,15 @@ class _BusinessImage extends StatelessWidget {
   }
 
   Widget _placeholder(ColorScheme colorScheme) => Container(
-        color: colorScheme.surfaceContainerHighest,
-        child: Center(
-          child: Icon(
-            Icons.store_outlined,
-            color: colorScheme.onSurface.withAlpha(64),
-            size: 28,
-          ),
-        ),
-      );
+    color: colorScheme.surfaceContainerHighest,
+    child: Center(
+      child: Icon(
+        Icons.store_outlined,
+        color: colorScheme.onSurface.withAlpha(64),
+        size: 28,
+      ),
+    ),
+  );
 }
 
 // ---- Rating badge (on cards) -----------------------------------------------
@@ -688,8 +750,8 @@ class _StarRow extends StatelessWidget {
           filled
               ? Icons.star_rounded
               : half
-                  ? Icons.star_half_rounded
-                  : Icons.star_outline_rounded,
+              ? Icons.star_half_rounded
+              : Icons.star_outline_rounded,
           size: size,
           color: const Color(0xFFFBBF24),
         );
@@ -714,8 +776,11 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.storefront_outlined,
-                size: 48, color: colorScheme.onSurface.withAlpha(51)),
+            Icon(
+              Icons.storefront_outlined,
+              size: 48,
+              color: colorScheme.onSurface.withAlpha(51),
+            ),
             const SizedBox(height: 12),
             Text(
               message,
@@ -749,8 +814,11 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.wifi_off_rounded,
-                size: 48, color: colorScheme.onSurface.withAlpha(51)),
+            Icon(
+              Icons.wifi_off_rounded,
+              size: 48,
+              color: colorScheme.onSurface.withAlpha(51),
+            ),
             const SizedBox(height: 12),
             Text(
               message,
@@ -771,4 +839,3 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
-

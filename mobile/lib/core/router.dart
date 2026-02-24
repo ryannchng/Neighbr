@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:neighbr/core/services/auth_state_notifier.dart';
 import 'package:neighbr/models/business_model.dart';
 import 'package:neighbr/models/user_profile_model.dart';
+import 'package:neighbr/screens/marketplace/my_marketplace_requests_screen.dart';
+import 'package:neighbr/screens/marketplace/write_marketplace_request_screen.dart';
 import 'package:neighbr/screens/profile/edit_profile_screen.dart';
 import 'package:neighbr/screens/profile/my_requests_screen.dart';
 import 'package:neighbr/screens/profile/my_reviews_screen.dart';
@@ -43,16 +45,20 @@ abstract class AppRoutes {
   static const profile = '/profile';
 
   // Profile sub-routes
-  static const editProfile        = '/profile/edit';
-  static const myReviews          = '/profile/reviews';
-  static const myRequests         = '/profile/requests';
-  static const saved              = '/profile/saved';
-  static const notificationPrefs  = '/profile/notifications';
+  static const editProfile = '/profile/edit';
+  static const myReviews = '/profile/reviews';
+  static const myRequests = '/profile/requests';
+  static const saved = '/profile/saved';
+  static const notificationPrefs = '/profile/notifications';
 
   // Owner portal
   static const ownerDashboard = '/owner';
   static const ownerBusinessForm = '/owner/businesses/new';
   static const ownerBusinessDetail = '/owner/businesses/:id';
+
+  // Marketplace requests (customer)
+  static const marketplaceNew = '/marketplace/new';
+  static const myMarketplaceReqs = '/profile/marketplace-requests';
 }
 
 // ---------------------------------------------------------------------------
@@ -195,9 +201,19 @@ class AppRouter {
                 path: 'notifications',
                 builder: (context, state) => const NotificationPrefsScreen(),
               ),
+              GoRoute(
+                path: 'marketplace-requests',
+                builder: (context, state) =>
+                    const MyMarketplaceRequestsScreen(),
+              ),
             ],
           ),
         ],
+      ),
+
+      GoRoute(
+        path: AppRoutes.marketplaceNew,
+        builder: (context, state) => const WriteMarketplaceRequestScreen(),
       ),
     ],
   );
@@ -216,7 +232,8 @@ class AppRouter {
       return null;
     }
 
-    final isEmailConfirmed = user?.emailConfirmedAt != null ||
+    final isEmailConfirmed =
+        user?.emailConfirmedAt != null ||
         user?.userMetadata?['email_verified'] == true;
 
     final isAnonymous = user?.isAnonymous ?? false;
@@ -225,7 +242,8 @@ class AppRouter {
         user?.userMetadata?['onboarding_completed'] == true;
 
     final isOnSplash = loc == AppRoutes.splash;
-    final isOnAuth = loc == AppRoutes.login ||
+    final isOnAuth =
+        loc == AppRoutes.login ||
         loc == AppRoutes.register ||
         loc == AppRoutes.emailVerification;
     final isOnOnboarding = loc == AppRoutes.onboarding;
@@ -254,7 +272,9 @@ class AppRouter {
       return AppRoutes.onboarding;
     }
 
-    if (isLoggedIn && (isEmailConfirmed || isAnonymous) && hasCompletedOnboarding) {
+    if (isLoggedIn &&
+        (isEmailConfirmed || isAnonymous) &&
+        hasCompletedOnboarding) {
       if (isOnAuth || isOnOnboarding) return AppRoutes.home;
     }
 
@@ -292,10 +312,8 @@ class _AppShell extends StatelessWidget {
   ];
 
   int _currentIndex(BuildContext context) {
-    final uri =
-        GoRouter.of(context).routeInformationProvider.value.uri;
-    final first =
-        uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+    final uri = GoRouter.of(context).routeInformationProvider.value.uri;
+    final first = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
     if (first == 'businesses') return 1;
     if (first == 'profile') return 2;
     return 0;
@@ -362,8 +380,6 @@ class _SplashScreenState extends State<_SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
