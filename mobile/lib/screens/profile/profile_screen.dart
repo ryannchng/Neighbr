@@ -26,7 +26,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserProfile? _profile;
 
   String get _email => SupabaseClientProvider.currentUser?.email ?? '';
-  bool get _isGuestUser => SupabaseClientProvider.currentUser?.isAnonymous ?? false;
 
   String get _displayName {
     final name = _profile?.fullName?.trim();
@@ -460,10 +459,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           if (!_loading) ...[
                             const SizedBox(height: 6),
-                            _RoleBadge(
-                              isOwner: _isOwner,
-                              isGuest: _isGuestUser,
-                            ),
+                            _RoleBadge(isOwner: _isOwner),
                           ],
                         ],
                       ),
@@ -591,28 +587,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // ============================================================================
 
 class _RoleBadge extends StatelessWidget {
-  const _RoleBadge({required this.isOwner, required this.isGuest});
+  const _RoleBadge({required this.isOwner});
   final bool isOwner;
-  final bool isGuest;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final color = isOwner
-        ? colorScheme.primary
-        : isGuest
-            ? const Color(0xFFF59E0B)
-            : colorScheme.secondary;
-    final label = isOwner
-        ? 'Owner'
-        : isGuest
-            ? 'Guest'
-            : 'Member';
-    final icon = isOwner
-        ? Icons.store_rounded
-        : isGuest
-            ? Icons.person_outline_rounded
-            : Icons.person_rounded;
+    final color = isOwner ? colorScheme.primary : colorScheme.secondary;
+    final label = isOwner ? 'Owner' : 'Member';
+    final icon = isOwner ? Icons.store_rounded : Icons.person_rounded;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
