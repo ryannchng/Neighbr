@@ -252,8 +252,9 @@ class AppRouter {
 
     if (!isLoggedIn && !isOnAuth) return AppRoutes.login;
 
-    if (isLoggedIn && isAnonymous && (isOnAuth || isOnOnboarding)) {
-      return AppRoutes.home;
+    if (isLoggedIn && isAnonymous) {
+      if (isOnAuth || isOnOnboarding) return AppRoutes.home;
+      return null;
     }
 
     if (isLoggedIn &&
