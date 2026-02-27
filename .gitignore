@@ -1,1 +1,7 @@
 .DS_Store
+.vscode
+
+mobile/.flutter-plugins-dependencies
+mobile/.dart_tool
+mobile/build
+mobile/ios/build
