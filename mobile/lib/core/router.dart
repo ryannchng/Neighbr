@@ -16,7 +16,6 @@ import 'package:neighbr/screens/auth/register_screen.dart';
 import 'package:neighbr/screens/auth/reset_password_screen.dart';
 import 'package:neighbr/screens/home/home_screen.dart';
 import 'package:neighbr/screens/business/business_detail_screen.dart';
-import 'package:neighbr/screens/business/write_request_screen.dart';
 import 'package:neighbr/screens/business/write_review_screen.dart';
 import 'package:neighbr/screens/owner/owner_dashboard_screen.dart';
 import 'package:neighbr/screens/owner/owner_business_detail_screen.dart';
@@ -41,7 +40,6 @@ abstract class AppRoutes {
   static const businessList = '/businesses';
   static const businessDetail = '/businesses/:id';
   static const writeReview = '/businesses/:id/review';
-  static const writeRequest = '/businesses/:id/request';
   static const profile = '/profile';
 
   // Profile sub-routes
@@ -161,13 +159,6 @@ class AppRouter {
                         businessId: businessId,
                         businessName: businessName,
                       );
-                    },
-                  ),
-                  GoRoute(
-                    path: 'request',
-                    builder: (context, state) {
-                      final businessId = state.pathParameters['id']!;
-                      return WriteRequestScreen(businessId: businessId);
                     },
                   ),
                 ],

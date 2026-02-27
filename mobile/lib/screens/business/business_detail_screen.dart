@@ -312,13 +312,6 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
                 icon: const Icon(Icons.rate_review_outlined),
                 label: const Text('Write a review'),
               ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () =>
-                  context.push('/businesses/${business.id}/request'),
-              icon: const Icon(Icons.campaign_outlined),
-              label: const Text('Write a request'),
-            ),
 
             // ── Reviews ────────────────────────────────────────────────────
             const SizedBox(height: 28),
