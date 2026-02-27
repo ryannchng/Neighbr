@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as dev;
 
 import '../core/supabase_client.dart';
@@ -7,6 +8,8 @@ const _kBusinessSelect =
     '*, categories(*), business_images(image_url, display_order)';
 
 class FavouritesRepository {
+  static final Map<String, Future<void>> _toggleChains = {};
+
   // ── Fetch all saved businesses ─────────────────────────────────────────────
 
   Future<List<Business>> getSaved() async {
@@ -72,15 +75,28 @@ class FavouritesRepository {
 
   // ── Toggle ─────────────────────────────────────────────────────────────────
 
-  /// Returns the new saved state (true = now saved).
   Future<bool> toggle(String businessId) async {
-    final saved = await isSaved(businessId);
-    if (saved) {
-      await unsave(businessId);
-      return false;
-    } else {
-      await save(businessId);
-      return true;
+    final chainKey = businessId;
+    final previous = _toggleChains[chainKey] ?? Future<void>.value();
+    final gate = Completer<void>();
+    final currentChain = previous.catchError((_) {}).then((_) => gate.future);
+    _toggleChains[chainKey] = currentChain;
+
+    try {
+      await previous.catchError((_) {});
+      final saved = await isSaved(businessId);
+      if (saved) {
+        await unsave(businessId);
+        return false;
+      } else {
+        await save(businessId);
+        return true;
+      }
+    } finally {
+      gate.complete();
+      if (identical(_toggleChains[chainKey], currentChain)) {
+        _toggleChains.remove(chainKey);
+      }
     }
   }
 }

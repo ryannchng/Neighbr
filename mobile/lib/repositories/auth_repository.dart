@@ -73,21 +73,13 @@ class AuthRepository {
     String? captchaToken,
   }) async {
     try {
-      final existing = await SupabaseClientProvider.client
-          .from('users')
-          .select('id')
-          .eq('username', username.trim())
-          .maybeSingle();
-
-      if (existing != null) {
-        throw const AppAuthException('That username is already taken.');
-      }
+      final trimmedUsername = username.trim();
 
       final response = await SupabaseClientProvider.auth.signUp(
         email: email.trim(),
         password: password,
         captchaToken: captchaToken,
-        data: {'username': username.trim()},
+        data: {'username': trimmedUsername},
         emailRedirectTo: 'com.example.mobile://login-callback',
       );
 
@@ -98,10 +90,20 @@ class AuthRepository {
       try {
         await SupabaseClientProvider.client.from('users').upsert({
           'id': response.user!.id,
-          'username': username.trim(),
+          'username': trimmedUsername,
         });
-      } catch (e) {
-        dev.log('Non-fatal: could not upsert user profile row: $e');
+      } on sb.PostgrestException catch (e, st) {
+        if (_isUsernameConflict(e)) {
+          throw const AppAuthException('That username is already taken.');
+        }
+        dev.log(
+          'registerWithEmail profile upsert failed: ${e.message}',
+          error: e,
+          stackTrace: st,
+        );
+        throw const AppAuthException(
+          'Could not finish registration. Please try again.',
+        );
       }
 
       return response;
@@ -186,5 +188,13 @@ class AuthRepository {
       return 'Network error. Check your connection and try again.';
     }
     return raw;
+  }
+
+  bool _isUsernameConflict(sb.PostgrestException error) {
+    final code = (error.code ?? '').toLowerCase();
+    final msg = '${error.message} ${error.details ?? ''}'.toLowerCase();
+    return (code == '23505' && msg.contains('username')) ||
+        (msg.contains('username') &&
+            (msg.contains('duplicate') || msg.contains('unique')));
   }
 }
