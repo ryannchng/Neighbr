@@ -24,6 +24,7 @@
 - [Features](#features)
 - [File Structure](#file-structure)
 - [Database Schema](#database-schema)
+- [Technologies](#technologies)
 
 # Setup
 
@@ -196,3 +197,11 @@ neighbr/
 # Database Schema
 
 <img align="center" src="design/database.png" title="Neighbr Database">
+
+# Technologies
+
+- [Flutter](https://flutter.dev/) - Frontend
+- [Dart](https://dart.dev/) - Language used for Flutter
+- [Android Studio](https://developer.android.com/studio) - Android device emulation during development
+- [Supabase](https://supabase.com/) - Backend (Auth + PostgreSQL Database)
+- Other small Flutter dependencies listed in [pubspec.yaml](mobile/pubspec.yaml)
