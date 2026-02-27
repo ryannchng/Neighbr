@@ -18,6 +18,12 @@
 <br/>
 <br/>
 
+# Links
+
+- [Features](#features)
+- [File Structure](#file-structure)
+- [Database Schema](#database-schema)
+
 # Features
 
 ## User Authentication
