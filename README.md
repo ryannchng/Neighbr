@@ -20,10 +20,27 @@
 
 # Links
 
+- [Setup](#setup)
 - [Features](#features)
 - [File Structure](#file-structure)
 - [Database Schema](#database-schema)
 
+# Setup
+
+## Quick Install (Android only)
+
+Simply download the .apk from the latest [release](https://github.com/ryannchng/Neighbr/releases)!
+
+## Flutter
+
+Requires [Flutter](https://docs.flutter.dev/install) to be installed.
+
+```bash
+git clone https://github.com/ryannchng/Neighbr.git # Clone the repository
+cd Neighbr/mobile                                  # Move into mobile directory
+flutter pub get                                    # Install app dependencies
+flutter run                                        # Start the app
+```
 # Features
 
 ## User Authentication
