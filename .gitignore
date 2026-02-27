@@ -4,4 +4,5 @@
 mobile/.flutter-plugins-dependencies
 mobile/.dart_tool
 mobile/build
+mobile/android/build
 mobile/ios/build
