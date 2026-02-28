@@ -6,7 +6,6 @@ import 'package:neighbr/models/user_profile_model.dart';
 import 'package:neighbr/screens/marketplace/my_marketplace_requests_screen.dart';
 import 'package:neighbr/screens/marketplace/write_marketplace_request_screen.dart';
 import 'package:neighbr/screens/profile/edit_profile_screen.dart';
-import 'package:neighbr/screens/profile/my_requests_screen.dart';
 import 'package:neighbr/screens/profile/my_reviews_screen.dart';
 import 'package:neighbr/screens/profile/saved_screen.dart';
 import 'package:neighbr/screens/profile/notification_prefs_screen.dart';
@@ -45,7 +44,6 @@ abstract class AppRoutes {
   // Profile sub-routes
   static const editProfile = '/profile/edit';
   static const myReviews = '/profile/reviews';
-  static const myRequests = '/profile/requests';
   static const saved = '/profile/saved';
   static const notificationPrefs = '/profile/notifications';
 
@@ -179,10 +177,6 @@ class AppRouter {
               GoRoute(
                 path: 'reviews',
                 builder: (context, state) => const MyReviewsScreen(),
-              ),
-              GoRoute(
-                path: 'requests',
-                builder: (context, state) => const MyRequestsScreen(),
               ),
               GoRoute(
                 path: 'saved',

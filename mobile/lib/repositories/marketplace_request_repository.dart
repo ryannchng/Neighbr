@@ -110,9 +110,9 @@ class MarketplaceRequestRepository {
           'user_id': userId,
           'title': title.trim(),
           'description': description.trim(),
-          if (categoryId != null) 'category_id': categoryId,
+          'category_id': ?categoryId,
           if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
-          if (maxBudget != null) 'max_budget': maxBudget,
+          'max_budget': ?maxBudget,
           if (neededBy != null) 'needed_by': neededBy.toIso8601String(),
         })
         .select('*, categories(*)')
@@ -261,3 +261,8 @@ class MarketplaceRequestRepository {
         .inFilter('status', ['pending', 'viewed']);
   }
 }
+
+
+
+
+

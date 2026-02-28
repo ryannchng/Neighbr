@@ -433,7 +433,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               scrollDirection: Axis.horizontal,
               itemCount: _categories.length + 1, // +1 for "All" chip
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
                 if (i == 0) {
                   // "All" chip
@@ -568,7 +568,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
 
     return SliverList.separated(
       itemCount: _businesses.length,
-      separatorBuilder: (_, __) => const Divider(
+      separatorBuilder: (_, _) => const Divider(
         height: 1,
         indent: 20,
         endIndent: 20,
@@ -607,7 +607,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
 
     return SliverList.separated(
       itemCount: _searchResults.length,
-      separatorBuilder: (_, __) =>
+      separatorBuilder: (_, _) =>
           const Divider(height: 1, indent: 20, endIndent: 20),
       itemBuilder: (context, i) => _BusinessTile(
         business: _searchResults[i],
@@ -1036,7 +1036,7 @@ class _Thumbnail extends StatelessWidget {
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : Container(color: colorScheme.surfaceContainerHighest),
-        errorBuilder: (_, __, ___) => _placeholder(colorScheme),
+        errorBuilder: (_, _, _) => _placeholder(colorScheme),
       );
     }
     return _placeholder(colorScheme);
@@ -1144,4 +1144,5 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
+
 

@@ -152,7 +152,7 @@ class _MyMarketplaceRequestsScreenState
                       child: ListView.separated(
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
                         itemCount: _requests.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (_, _) =>
                             const SizedBox(height: 12),
                         itemBuilder: (context, i) => _RequestCard(
                           request: _requests[i],

@@ -96,7 +96,7 @@ class _SavedScreenState extends State<SavedScreen> {
                       child: ListView.separated(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         itemCount: _saved.length,
-                        separatorBuilder: (_, __) => const Divider(
+                        separatorBuilder: (_, _) => const Divider(
                           height: 1,
                           indent: 20,
                           endIndent: 20,
@@ -246,7 +246,7 @@ class _Thumbnail extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     if (imageUrl != null) {
       return Image.network(imageUrl!, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _placeholder(colorScheme));
+          errorBuilder: (_, _, _) => _placeholder(colorScheme));
     }
     return _placeholder(colorScheme);
   }
@@ -353,3 +353,4 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
+

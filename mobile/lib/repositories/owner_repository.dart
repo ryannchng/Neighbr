@@ -139,7 +139,7 @@ class OwnerRepository {
           'owner_id': userId,
           'name': name.trim(),
           'description': description.trim(),
-          if (categoryId != null) 'category_id': categoryId,
+          'category_id': ?categoryId,
           if (address != null && address.trim().isNotEmpty)
             'address': address.trim(),
           if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
@@ -148,7 +148,7 @@ class OwnerRepository {
           if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
           if (website != null && website.trim().isNotEmpty)
             'website': website.trim(),
-          if (priceRange != null) 'price_range': priceRange,
+          'price_range': ?priceRange,
         })
         .select('*, categories(*), business_images(image_url, display_order)')
         .single();
@@ -227,3 +227,7 @@ class OwnerRepository {
     );
   }
 }
+
+
+
+

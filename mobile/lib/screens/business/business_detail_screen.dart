@@ -655,7 +655,7 @@ class _BusinessImage extends StatelessWidget {
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : Container(color: colorScheme.surfaceContainerHighest),
-        errorBuilder: (_, __, ___) => _placeholder(colorScheme),
+        errorBuilder: (_, _, _) => _placeholder(colorScheme),
       );
     }
     return _placeholder(colorScheme);
@@ -669,3 +669,4 @@ class _BusinessImage extends StatelessWidget {
         ),
       );
 }
+

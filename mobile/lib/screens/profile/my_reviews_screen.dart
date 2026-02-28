@@ -119,7 +119,7 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
                       child: ListView.separated(
                         padding: const EdgeInsets.all(20),
                         itemCount: _reviews.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (_, _) =>
                             const SizedBox(height: 12),
                         itemBuilder: (context, i) => _ReviewCard(
                           review: _reviews[i],
@@ -279,7 +279,7 @@ class _Thumbnail extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     if (imageUrl != null) {
       return Image.network(imageUrl!, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _placeholder(colorScheme));
+          errorBuilder: (_, _, _) => _placeholder(colorScheme));
     }
     return _placeholder(colorScheme);
   }
@@ -379,3 +379,4 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
+

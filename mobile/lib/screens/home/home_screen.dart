@@ -286,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         itemCount: _data!.featured.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        separatorBuilder: (_, _) => const SizedBox(width: 14),
         itemBuilder: (context, i) => _FeaturedCard(
           business: _data!.featured[i],
           onTap: () => _goToBusiness(_data!.featured[i].id),
@@ -307,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return SliverList.separated(
       itemCount: businesses.length,
-      separatorBuilder: (_, __) =>
+      separatorBuilder: (_, _) =>
           const Divider(height: 1, indent: 20, endIndent: 20),
       itemBuilder: (context, i) => _BusinessListTile(
         business: businesses[i],
@@ -649,7 +649,7 @@ class _BusinessImage extends StatelessWidget {
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : Container(color: colorScheme.surfaceContainerHighest),
-        errorBuilder: (_, __, ___) => _placeholder(colorScheme),
+        errorBuilder: (_, _, _) => _placeholder(colorScheme),
       );
     }
     return _placeholder(colorScheme);
@@ -839,3 +839,4 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
+

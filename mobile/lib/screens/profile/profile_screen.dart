@@ -6,7 +6,6 @@ import '../../core/router.dart';
 import '../../core/supabase_client.dart';
 import '../../models/user_profile_model.dart';
 import '../../repositories/auth_repository.dart';
-import '../../repositories/profile_repository.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,7 +16,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authRepo = AuthRepository();
-  final _profileRepo = ProfileRepository();
 
   bool _loading = true;
   bool _isOwner = false;
@@ -244,17 +242,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: () => context.push(AppRoutes.myReviews),
                   ),
                   _SettingsTile(
-                    icon: Icons.campaign_outlined,
-                    iconColor: const Color(0xFFF59E0B),
-                    title: 'My Requests',
-                    subtitle: 'Track requests you posted to businesses',
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => context.push(AppRoutes.myRequests),
-                  ),
-                  _SettingsTile(
                     icon: Icons.campaign_rounded,
                     iconColor: const Color(0xFFF59E0B),
-                    title: 'Marketplace Requests',
+                    title: 'My Requests',
                     subtitle: 'Requests you\'ve posted to local businesses',
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => context.push(AppRoutes.myMarketplaceReqs),
@@ -728,3 +718,6 @@ class _SettingsTile extends StatelessWidget {
     );
   }
 }
+
+
+

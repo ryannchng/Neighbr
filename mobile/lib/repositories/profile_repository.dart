@@ -69,8 +69,8 @@ class ProfileRepository {
       'username': username,
       'full_name': fullName?.trim().isEmpty == true ? null : fullName?.trim(),
       'city': city?.trim().isEmpty == true ? null : city?.trim(),
-      if (avatarUrl != null) 'avatar_url': avatarUrl,
-      if (interests != null) 'interests': interests,
+      'avatar_url': ?avatarUrl,
+      'interests': ?interests,
     };
 
     await SupabaseClientProvider.client.from('users').upsert(updates);
@@ -134,3 +134,7 @@ class ProfileRepository {
     }
   }
 }
+
+
+
+

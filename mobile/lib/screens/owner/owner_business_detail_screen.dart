@@ -6,7 +6,6 @@ import 'package:neighbr/screens/marketplace/marketplace_recommendations_tab.dart
 
 import '../../core/router.dart';
 import '../../models/business_model.dart';
-import '../../repositories/business_request_repository.dart';
 import '../../repositories/owner_repository.dart';
 
 class OwnerBusinessDetailScreen extends StatefulWidget {
@@ -22,7 +21,6 @@ class OwnerBusinessDetailScreen extends StatefulWidget {
 class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
     with SingleTickerProviderStateMixin {
   final _repo = OwnerRepository();
-  final _requestRepo = BusinessRequestRepository();
   final _marketplaceRepo = MarketplaceRequestRepository();
 
 
@@ -33,19 +31,16 @@ class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
   RatingDistribution _distribution = const RatingDistribution(
     counts: [0, 0, 0, 0, 0],
   );
-  List<BusinessRequest> _requests = [];
 
   int _pendingMarketplaceCount = 0;
 
   bool _loading = true;
   String? _error;
 
-  final Set<String> _processingIds = {};
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -65,7 +60,6 @@ class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
         _repo.getBusinessById(widget.businessId),
         _repo.getReviews(widget.businessId),
         _repo.getRatingDistribution(widget.businessId),
-        _requestRepo.getRequestsForBusiness(widget.businessId),
         _marketplaceRepo.getPendingRecommendationCount(widget.businessId),
       ]);
 
@@ -74,8 +68,7 @@ class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
         _business = results[0] as Business?;
         _reviews = results[1] as List<ReviewSummary>;
         _distribution = results[2] as RatingDistribution;
-        _requests = results[3] as List<BusinessRequest>;
-        _pendingMarketplaceCount = results[4] as int;
+        _pendingMarketplaceCount = results[3] as int;
         _loading = false;
       });
     } catch (e) {
@@ -84,38 +77,6 @@ class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
         _error = 'Failed to load business details: $e';
         _loading = false;
       });
-    }
-  }
-
-  Future<void> _claimRequest(String requestId) async {
-    setState(() => _processingIds.add(requestId));
-    try {
-      await _requestRepo.takeRequest(requestId);
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not claim request: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _processingIds.remove(requestId));
-    }
-  }
-
-  Future<void> _markDone(String requestId) async {
-    setState(() => _processingIds.add(requestId));
-    try {
-      await _requestRepo.markDone(requestId);
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not mark as done: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _processingIds.remove(requestId));
     }
   }
 
@@ -157,9 +118,6 @@ class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
       );
     }
 
-    final openCount = _requests.where((r) => r.isOpen).length;
-    final claimedCount = _requests.where((r) => r.isClaimed).length;
-
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
@@ -183,12 +141,6 @@ class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
             const Tab(text: 'Analytics'),
             const Tab(text: 'Reviews'),
             Tab(
-              child: _RequestsTabLabel(
-                openCount: openCount,
-                claimedCount: claimedCount,
-              ),
-            ),
-            Tab(
               child: MarketplaceTabLabel(
                 pendingCount: _pendingMarketplaceCount,
               ),
@@ -206,393 +158,8 @@ class _OwnerBusinessDetailScreenState extends State<OwnerBusinessDetailScreen>
             distribution: _distribution,
           ),
           _ReviewsTab(reviews: _reviews),
-          _RequestsTab(
-            requests: _requests,
-            processingIds: _processingIds,
-            onClaim: _claimRequest,
-            onMarkDone: _markDone,
-          ),
           MarketplaceRecommendationsTab(businessId: widget.businessId),
           _DetailsTab(business: business),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Requests tab label with badge
-// ---------------------------------------------------------------------------
-
-class _RequestsTabLabel extends StatelessWidget {
-  const _RequestsTabLabel({
-    required this.openCount,
-    required this.claimedCount,
-  });
-
-  final int openCount;
-  final int claimedCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final pending = openCount + claimedCount;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('Requests'),
-        if (pending > 0) ...[
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: Colors.red,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '$pending',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Requests tab
-// ---------------------------------------------------------------------------
-
-class _RequestsTab extends StatelessWidget {
-  const _RequestsTab({
-    required this.requests,
-    required this.processingIds,
-    required this.onClaim,
-    required this.onMarkDone,
-  });
-
-  final List<BusinessRequest> requests;
-  final Set<String> processingIds;
-  final void Function(String) onClaim;
-  final void Function(String) onMarkDone;
-
-  @override
-  Widget build(BuildContext context) {
-    if (requests.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.campaign_outlined, size: 48, color: Colors.grey),
-              SizedBox(height: 12),
-              Text(
-                'No requests yet',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'Requests from customers will appear here.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final open = requests.where((r) => r.isOpen).toList();
-    final inProgress = requests.where((r) => r.isClaimed).toList();
-    final done = requests.where((r) => r.isCompleted).toList();
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      children: [
-        if (open.isNotEmpty) ...[
-          _SectionHeader(
-            label: 'Open',
-            count: open.length,
-            color: Colors.orange,
-          ),
-          const SizedBox(height: 8),
-          ...open.map(
-            (r) => _RequestCard(
-              request: r,
-              isProcessing: processingIds.contains(r.id),
-              onClaim: () => onClaim(r.id),
-              onMarkDone: null,
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-        if (inProgress.isNotEmpty) ...[
-          _SectionHeader(
-            label: 'In Progress',
-            count: inProgress.length,
-            color: Colors.blue,
-          ),
-          const SizedBox(height: 8),
-          ...inProgress.map(
-            (r) => _RequestCard(
-              request: r,
-              isProcessing: processingIds.contains(r.id),
-              onClaim: null,
-              onMarkDone: () => onMarkDone(r.id),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-        if (done.isNotEmpty) ...[
-          _SectionHeader(
-            label: 'Done',
-            count: done.length,
-            color: Colors.green,
-          ),
-          const SizedBox(height: 8),
-          ...done.map(
-            (r) => _RequestCard(
-              request: r,
-              isProcessing: false,
-              onClaim: null,
-              onMarkDone: null,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.label,
-    required this.count,
-    required this.color,
-  });
-
-  final String label;
-  final int count;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-          decoration: BoxDecoration(
-            color: color.withAlpha(30),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            '$count',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RequestCard extends StatelessWidget {
-  const _RequestCard({
-    required this.request,
-    required this.isProcessing,
-    required this.onClaim,
-    required this.onMarkDone,
-  });
-
-  final BusinessRequest request;
-  final bool isProcessing;
-  final VoidCallback? onClaim;
-  final VoidCallback? onMarkDone;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final dateStr = DateFormat(
-      'MMM d, yyyy',
-    ).format(request.createdAt.toLocal());
-
-    final (chipColor, chipLabel, chipIcon) = switch (request.status) {
-      'open' => (Colors.orange, 'Open', Icons.radio_button_unchecked),
-      'claimed' => (Colors.blue, 'In Progress', Icons.timelapse_rounded),
-      'completed' => (Colors.green, 'Done', Icons.check_circle_rounded),
-      _ => (Colors.grey, request.status, Icons.help_outline),
-    };
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colorScheme.outline.withAlpha(38)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.person_outline_rounded,
-                size: 15,
-                color: colorScheme.onSurface.withAlpha(128),
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  request.requesterUsername ?? 'Customer',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: chipColor.withAlpha(26),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: chipColor.withAlpha(77)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(chipIcon, size: 11, color: chipColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      chipLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: chipColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            request.requestText,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.4,
-              color: colorScheme.onSurface.withAlpha(210),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 6,
-            children: [
-              _MetaChip(icon: Icons.calendar_today_outlined, label: dateStr),
-              if (request.maxBudget != null)
-                _MetaChip(
-                  icon: Icons.attach_money_rounded,
-                  label: 'Budget: \$${request.maxBudget!.toStringAsFixed(0)}',
-                ),
-              if (request.neededBy != null)
-                _MetaChip(
-                  icon: Icons.event_outlined,
-                  label:
-                      'By ${DateFormat('MMM d').format(request.neededBy!.toLocal())}',
-                ),
-            ],
-          ),
-          if (onClaim != null || onMarkDone != null) ...[
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (isProcessing)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else if (onClaim != null)
-                  FilledButton.tonal(
-                    onPressed: onClaim,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 40),
-                    ),
-                    child: const Text('Claim'),
-                  )
-                else if (onMarkDone != null)
-                  FilledButton(
-                    onPressed: onMarkDone,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 40),
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Mark as done'),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 190),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: colorScheme.onSurface.withAlpha(128)),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withAlpha(153),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -835,7 +402,7 @@ class _ReviewsTab extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: reviews.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, i) {
         final review = reviews[i];
         return Padding(
