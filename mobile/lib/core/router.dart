@@ -239,12 +239,22 @@ class AppRouter {
         loc == AppRoutes.emailVerification;
     final isOnOnboarding = loc == AppRoutes.onboarding;
 
-    if (isOnSplash) return null;
+    if (isOnSplash) {
+      if (!isLoggedIn) return AppRoutes.login;
+      if (isAnonymous) return AppRoutes.home;
+      if (!isEmailConfirmed) {
+        return '${AppRoutes.emailVerification}'
+            '?email=${Uri.encodeComponent(user.email ?? '')}';
+      }
+      if (!hasCompletedOnboarding) return AppRoutes.onboarding;
+      return AppRoutes.home;
+    }
 
     if (!isLoggedIn && !isOnAuth) return AppRoutes.login;
 
-    if (isLoggedIn && isAnonymous && (isOnAuth || isOnOnboarding)) {
-      return AppRoutes.home;
+    if (isLoggedIn && isAnonymous) {
+      if (isOnAuth || isOnOnboarding) return AppRoutes.home;
+      return null;
     }
 
     if (isLoggedIn &&
@@ -342,33 +352,6 @@ class _SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<_SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    _redirect();
-  }
-
-  Future<void> _redirect() async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-
-    final user = SupabaseClientProvider.currentUser;
-    if (user == null) {
-      context.go(AppRoutes.login);
-    } else if (user.isAnonymous) {
-      context.go(AppRoutes.home);
-    } else if (user.emailConfirmedAt == null) {
-      context.go(
-        '${AppRoutes.emailVerification}'
-        '?email=${Uri.encodeComponent(user.email ?? '')}',
-      );
-    } else if (user.userMetadata?['onboarding_completed'] != true) {
-      context.go(AppRoutes.onboarding);
-    } else {
-      context.go(AppRoutes.home);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return const Scaffold(body: Center(child: CircularProgressIndicator()));

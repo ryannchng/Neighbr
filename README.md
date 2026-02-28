@@ -18,6 +18,30 @@
 <br/>
 <br/>
 
+# Links
+
+- [Setup](#setup)
+- [Features](#features)
+- [File Structure](#file-structure)
+- [Database Schema](#database-schema)
+- [Technologies](#technologies)
+
+# Setup
+
+## Quick Install (Android only)
+
+Simply download the .apk from the latest [release](https://github.com/ryannchng/Neighbr/releases)!
+
+## Flutter
+
+Requires [Flutter](https://docs.flutter.dev/install) to be installed.
+
+```bash
+git clone https://github.com/ryannchng/Neighbr.git # Clone the repository
+cd Neighbr/mobile                                  # Move into mobile directory
+flutter pub get                                    # Install app dependencies
+flutter run                                        # Start the app
+```
 # Features
 
 ## User Authentication
@@ -30,7 +54,7 @@
 
 ## Onboarding
 
-- Multi-step onboarding wizard (profile setup → location permissions → interest selection)
+- Multi-step onboarding wizard (profile setup -> location permissions -> interest selection)
 - Avatar upload from camera or photo library
 - Username validation with profanity filtering
 - Skippable steps with "skip all" option
@@ -58,7 +82,7 @@
 - Review guidelines and duplicate review prevention
 - Guest users blocked from submitting reviews/requests
 - Post service requests with optional budget and deadline
-- Track personal request status (open → claimed → completed)
+- Track personal request status (open -> claimed -> completed)
 
 ## Profile
 
@@ -90,6 +114,94 @@
 - Supabase backend with Row Level Security
 - Repository pattern separating data access from UI
 
+# File Structure
+
+```
+neighbr/
+├── design/
+│   ├── database.png              # Database schema diagram
+│   └── logo.png                  # App logo
+│   └── logo_transparent.png      # Transparent app logo
+│
+└── mobile/
+    ├── pubspec.yaml              # Dependencies and Flutter config
+    └── lib/
+        ├── main.dart             # Entry point — initialises Supabase
+        ├── app.dart              # Root widget — MaterialApp.router + theming
+        │
+        ├── core/
+        │   ├── constants.dart              # Supabase keys, pagination, map defaults
+        │   ├── router.dart                 # GoRouter config, route names, auth guard, app shell
+        │   ├── theme.dart                  # Material 3 light/dark themes
+        │   ├── supabase_client.dart        # SupabaseClient singleton accessor
+        │   ├── secure_session_storage.dart # Keychain / EncryptedSharedPreferences session store
+        │   ├── category_icon_mapper.dart   # Maps category keys to Material icons
+        │   └── services/
+        │       └── auth_state_notifier.dart # ChangeNotifier that mirrors Supabase auth events
+        │
+        ├── models/
+        │   ├── business_model.dart         # Business entity + fromJson
+        │   ├── category_model.dart         # Category entity + fromJson
+        │   └── user_profile_model.dart     # UserProfile entity + fromJson
+        │
+        ├── repositories/
+        │   ├── auth_repository.dart                  # Sign in, register, password reset, sign out
+        │   ├── business_repository.dart              # Fetch businesses, search, categories, hours
+        │   ├── business_request_repository.dart      # Per-business service requests (CRUD)
+        │   ├── favourites_repository.dart            # Save / unsave / toggle bookmarks
+        │   ├── marketplace_request_repository.dart   # Marketplace requests + recommendations
+        │   ├── owner_repository.dart                 # Owner listings, reviews, hours, analytics
+        │   ├── profile_repository.dart               # Profile fetch, save, avatar upload, onboarding
+        │   └── review_repository.dart                # Submit, fetch, and delete reviews
+        │
+        └── screens/
+            ├── auth/
+            │   ├── login_screen.dart                 # Email/password sign in + guest mode
+            │   ├── register_screen.dart              # Account creation with password strength meter
+            │   ├── email_verification_screen.dart    # Post-registration verification wait screen
+            │   └── reset_password_screen.dart        # Password update after recovery link
+            │
+            ├── onboarding/
+            │   └── onboarding_screen.dart            # 3-step wizard: profile -> location -> interests
+            │
+            ├── home/
+            │   └── home_screen.dart                  # Featured carousel, newest list, marketplace CTA
+            │
+            ├── browse/
+            │   └── browse_screen.dart                # Infinite scroll, category filter, sort, search
+            │
+            ├── business/
+            │   ├── business_detail_screen.dart       # Business profile, hours, contact, reviews
+            │   ├── write_review_screen.dart          # Star rating + written review form
+            │   └── write_request_screen.dart         # (Commented out — legacy per-business request)
+            │
+            ├── marketplace/
+            │   ├── write_marketplace_request_screen.dart  # Post a new marketplace request
+            │   ├── my_marketplace_requests_screen.dart    # Customer view of own requests
+            │   └── marketplace_recommendations_tab.dart   # Owner tab: incoming recommendations
+            │
+            ├── owner/
+            │   ├── owner_dashboard_screen.dart       # Owner portal: listings overview + summary cards
+            │   ├── owner_business_detail_screen.dart # Tabbed view: analytics, reviews, requests, details
+            │   └── owner_business_form_screen.dart   # Create / edit listing + business hours picker
+            │
+            └── profile/
+                ├── profile_screen.dart               # Profile card, settings menu, role badge
+                ├── edit_profile_screen.dart          # Edit username, name, city, avatar, interests
+                ├── my_reviews_screen.dart            # List of user's reviews with delete
+                ├── my_requests_screen.dart           # List of per-business service requests
+                ├── saved_screen.dart                 # Bookmarked businesses with undo-unsave
+                └── notification_prefs_screen.dart    # Notification toggle preferences
+```
+
 # Database Schema
 
 <img align="center" src="design/database.png" title="Neighbr Database">
+
+# Technologies
+
+- [Flutter](https://flutter.dev/) - Frontend
+- [Dart](https://dart.dev/) - Language used for Flutter
+- [Android Studio](https://developer.android.com/studio) - Android device emulation during development
+- [Supabase](https://supabase.com/) - Backend (Auth + PostgreSQL Database)
+- Other small Flutter dependencies listed in [pubspec.yaml](mobile/pubspec.yaml)
