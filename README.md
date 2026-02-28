@@ -20,27 +20,27 @@
 
 # Links
 
-- [Setup](#setup)
+- [Installation](#installation)
 - [Features](#features)
 - [File Structure](#file-structure)
 - [Database Schema](#database-schema)
-- [Technologies](#technologies)
+- [Tech Stack](#tech-stack)
 
-# Setup
+# Installation
 
-## Quick Install (Android only)
+## Android APK (quickest)
 
-Simply download the .apk from the latest [release](https://github.com/ryannchng/Neighbr/releases)!
+Download the latest .apk from the [Releases](https://github.com/ryannchng/Neighbr/releases) page and install directly.
 
-## Flutter
+## Run from source
 
 Requires [Flutter](https://docs.flutter.dev/install) to be installed.
 
 ```bash
-git clone https://github.com/ryannchng/Neighbr.git # Clone the repository
-cd Neighbr/mobile                                  # Move into mobile directory
-flutter pub get                                    # Install app dependencies
-flutter run                                        # Start the app
+git clone https://github.com/ryannchng/Neighbr.git          # Clone the repository
+cd Neighbr/mobile                                           # Move into mobile directory
+flutter pub get                                             # Install app dependencies
+flutter run                                                 # Start the app
 ```
 # Features
 
@@ -119,30 +119,30 @@ flutter run                                        # Start the app
 ```
 neighbr/
 ├── design/
-│   ├── database.png              # Database schema diagram
-│   └── logo.png                  # App logo
-│   └── logo_transparent.png      # Transparent app logo
+│   ├── database.png                                # Database schema diagram
+│   └── logo.png                                    # App logo
+│   └── logo_transparent.png                        # Transparent app logo
 │
 └── mobile/
-    ├── pubspec.yaml              # Dependencies and Flutter config
+    ├── pubspec.yaml                                # Dependencies and Flutter config
     └── lib/
-        ├── main.dart             # Entry point — initialises Supabase
-        ├── app.dart              # Root widget — MaterialApp.router + theming
+        ├── main.dart                               # Entry point — initialises Supabase
+        ├── app.dart                                # Root widget — MaterialApp.router + theming
         │
         ├── core/
-        │   ├── constants.dart              # Supabase keys, pagination, map defaults
-        │   ├── router.dart                 # GoRouter config, route names, auth guard, app shell
-        │   ├── theme.dart                  # Material 3 light/dark themes
-        │   ├── supabase_client.dart        # SupabaseClient singleton accessor
-        │   ├── secure_session_storage.dart # Keychain / EncryptedSharedPreferences session store
-        │   ├── category_icon_mapper.dart   # Maps category keys to Material icons
+        │   ├── constants.dart                      # Supabase keys, pagination, map defaults
+        │   ├── router.dart                         # GoRouter config, route names, auth guard, app shell
+        │   ├── theme.dart                          # Material 3 light/dark themes
+        │   ├── supabase_client.dart                # SupabaseClient singleton accessor
+        │   ├── secure_session_storage.dart         # Keychain / EncryptedSharedPreferences session store
+        │   ├── category_icon_mapper.dart           # Maps category keys to Material icons
         │   └── services/
-        │       └── auth_state_notifier.dart # ChangeNotifier that mirrors Supabase auth events
+        │       └── auth_state_notifier.dart        # ChangeNotifier that mirrors Supabase auth events
         │
         ├── models/
-        │   ├── business_model.dart         # Business entity + fromJson
-        │   ├── category_model.dart         # Category entity + fromJson
-        │   └── user_profile_model.dart     # UserProfile entity + fromJson
+        │   ├── business_model.dart                 # Business entity + fromJson
+        │   ├── category_model.dart                 # Category entity + fromJson
+        │   └── user_profile_model.dart             # UserProfile entity + fromJson
         │
         ├── repositories/
         │   ├── auth_repository.dart                  # Sign in, register, password reset, sign out
@@ -198,10 +198,14 @@ neighbr/
 
 <img align="center" src="design/database.png" title="Neighbr Database">
 
-# Technologies
+# Tech Stack
 
 - [Flutter](https://flutter.dev/) - Frontend
 - [Dart](https://dart.dev/) - Language used for Flutter
 - [Android Studio](https://developer.android.com/studio) - Android device emulation during development
 - [Supabase](https://supabase.com/) - Backend (Auth + PostgreSQL Database)
 - Other small Flutter dependencies listed in [pubspec.yaml](mobile/pubspec.yaml)
+
+# License
+
+Neighbr is licensed under the GNU Affero General Public License v3.0.
